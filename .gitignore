@@ -1,7 +1,47 @@
+# Dependencies
+node_modules/
 package-lock.json
-.*.swp
-node_modules
-bugout.js
-test.log
-workspace
-SEED*.txt
+yarn.lock
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Editor directories and files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Temp files
+*.tmp
+tmp/
+temp/

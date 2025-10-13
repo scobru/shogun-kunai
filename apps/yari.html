@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Yari (槍) Demo (UMD) - Encrypted P2P Chat ⚔️🔐</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #0f0f23;
+      color: #cccccc;
+    }
+    h1 { 
+      color: #ff00ff; 
+      text-shadow: 0 0 10px #ff00ff;
+    }
+    .subtitle {
+      color: #00ff00;
+      text-align: center;
+      margin-top: -10px;
+      font-size: 0.9em;
+    }
+    .container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-top: 20px;
+    }
+    .panel {
+      background: #1a1a2e;
+      border: 1px solid #ff00ff;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 0 20px rgba(255, 0, 255, 0.1);
+    }
+    .panel h2 {
+      margin-top: 0;
+      color: #ff00ff;
+      font-size: 1.2em;
+      border-bottom: 1px solid #ff00ff;
+      padding-bottom: 10px;
+    }
+    .info-item {
+      margin: 10px 0;
+      padding: 8px;
+      background: #0f0f23;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 0.85em;
+      word-break: break-all;
+    }
+    .info-label { color: #888; display: inline-block; width: 100px; }
+    #messages {
+      height: 300px;
+      overflow-y: auto;
+      background: #0f0f23;
+      padding: 10px;
+      border-radius: 4px;
+      margin-bottom: 10px;
+      font-family: monospace;
+      font-size: 0.9em;
+    }
+    .message {
+      margin: 8px 0;
+      padding: 8px;
+      background: #1a1a2e;
+      border-left: 3px solid #00ff00;
+      border-radius: 4px;
+    }
+    .message-encrypted {
+      border-left-color: #ff00ff;
+      background: #2a1a2e;
+    }
+    .message-address { color: #ff00ff; font-weight: bold; font-size: 0.85em; }
+    .message-content { margin-top: 4px; color: #cccccc; }
+    .message-time { color: #666; font-size: 0.75em; margin-top: 4px; }
+    .message-lock { color: #ff00ff; font-size: 0.8em; }
+    #peers-list {
+      max-height: 200px;
+      overflow-y: auto;
+      background: #0f0f23;
+      padding: 10px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 0.85em;
+    }
+    .peer-item {
+      padding: 6px;
+      margin: 4px 0;
+      background: #1a1a2e;
+      border-radius: 4px;
+      border-left: 3px solid #ff00ff;
+    }
+    .peer-address { color: #ff00ff; }
+    .peer-keys { color: #00ff00; font-size: 0.75em; margin-top: 4px; }
+    input[type="text"] {
+      width: 100%;
+      padding: 10px;
+      background: #0f0f23;
+      border: 1px solid #ff00ff;
+      border-radius: 4px;
+      color: #cccccc;
+      font-family: inherit;
+      font-size: 1em;
+    }
+    input[type="text"]:focus {
+      outline: none;
+      box-shadow: 0 0 10px rgba(255, 0, 255, 0.3);
+    }
+    button {
+      background: #ff00ff;
+      color: #0f0f23;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 1em;
+      transition: all 0.2s;
+    }
+    button:hover { background: #cc00cc; box-shadow: 0 0 10px rgba(255, 0, 255, 0.5); }
+    button:active { transform: scale(0.95); }
+    .send-form { display: flex; gap: 10px; margin-top: 10px; }
+    .send-form input { flex: 1; }
+    #status {
+      padding: 10px;
+      background: #1a1a2e;
+      border-radius: 4px;
+      margin-bottom: 20px;
+      text-align: center;
+      font-weight: bold;
+      border: 1px solid #ff00ff;
+    }
+    .status-connecting { color: #ffaa00; }
+    .status-connected { color: #00ff00; }
+    .log-entry {
+      padding: 4px 8px;
+      margin: 2px 0;
+      font-size: 0.85em;
+      border-radius: 3px;
+      background: #0f0f23;
+    }
+    .log-info { border-left: 3px solid #00aaff; }
+    .log-success { border-left: 3px solid #00ff00; }
+    .log-encrypted { border-left: 3px solid #ff00ff; }
+    .log-warning { border-left: 3px solid #ffaa00; }
+    #event-log {
+      height: 250px;
+      overflow-y: auto;
+      background: #0f0f23;
+      padding: 10px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 0.85em;
+    }
+    .full-width { grid-column: 1 / -1; }
+  </style>
+</head>
+<body>
+  <h1>⚔️🔐 Yari (槍) Demo (UMD)</h1>
+  <div class="subtitle">Using dist/yari.umd.js - End-to-End Encrypted P2P Chat</div>
+  
+  <div id="status" class="status-connecting">🔄 Loading...</div>
+
+  <div class="container">
+    <div class="panel">
+      <h2>📊 Node Info</h2>
+      <div class="info-item">
+        <span class="info-label">Address:</span>
+        <span id="address">-</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">Room:</span>
+        <span id="room-id">-</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">SEA Pub:</span>
+        <span id="sea-pub">-</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">Peers:</span>
+        <span id="connections">0</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>🔑 Encrypted Peers (<span id="peer-count">0</span>)</h2>
+      <div id="peers-list">
+        <div style="color: #666; text-align: center; padding: 20px;">
+          Waiting for peers...
+        </div>
+      </div>
+    </div>
+
+    <div class="panel full-width">
+      <h2>💬 Encrypted Chat</h2>
+      <div id="messages"></div>
+      <div class="send-form">
+        <input type="text" id="message-input" placeholder="Type encrypted message...">
+        <button id="send-button">🔐 Send</button>
+      </div>
+    </div>
+
+    <div class="panel full-width">
+      <h2>📋 Event Log</h2>
+      <div id="event-log"></div>
+    </div>
+  </div>
+
+  <!-- Dependencies -->
+  <!-- Shogun Core includes Gun + SEA -->
+  <script src="https://cdn.jsdelivr.net/npm/shogun-core@3.3.5/dist/browser/shogun-core.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tweetnacl@1.0.3/nacl-fast.min.js"></script>
+  
+  <!-- bs58 minimal implementation -->
+  <script>
+    const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+    window.bs58 = {
+      encode: function(buffer) {
+        if (buffer.length === 0) return '';
+        const digits = [0];
+        for (let i = 0; i < buffer.length; i++) {
+          let carry = buffer[i];
+          for (let j = 0; j < digits.length; j++) {
+            carry += digits[j] << 8;
+            digits[j] = carry % 58;
+            carry = (carry / 58) | 0;
+          }
+          while (carry > 0) {
+            digits.push(carry % 58);
+            carry = (carry / 58) | 0;
+          }
+        }
+        let result = '';
+        for (let i = 0; buffer[i] === 0 && i < buffer.length - 1; i++) {
+          result += BASE58_ALPHABET[0];
+        }
+        for (let i = digits.length - 1; i >= 0; i--) {
+          result += BASE58_ALPHABET[digits[i]];
+        }
+        return result;
+      },
+      decode: function(string) {
+        if (string.length === 0) return new Uint8Array(0);
+        const bytes = [0];
+        for (let i = 0; i < string.length; i++) {
+          const value = BASE58_ALPHABET.indexOf(string[i]);
+          if (value === -1) throw new Error('Non-base58 character');
+          let carry = value;
+          for (let j = 0; j < bytes.length; j++) {
+            carry += bytes[j] * 58;
+            bytes[j] = carry & 0xff;
+            carry >>= 8;
+          }
+          while (carry > 0) {
+            bytes.push(carry & 0xff);
+            carry >>= 8;
+          }
+        }
+        for (let i = 0; string[i] === BASE58_ALPHABET[0] && i < string.length - 1; i++) {
+          bytes.push(0);
+        }
+        return new Uint8Array(bytes.reverse());
+      }
+    };
+  </script>
+
+  <!-- Yumi UMD - Required for Yari -->
+  <script src="../dist/yumi.umd.js"></script>
+  
+  <!-- Yari UMD - External compiled file! -->
+  <script src="../dist/yari.umd.js"></script>
+
+  <script>
+    // App logic
+    const room = window.location.hash.slice(1) || 'yari-encrypted-' + Math.random().toString(36).slice(2, 8);
+    document.getElementById('room-id').textContent = room;
+    
+    const yari = new Yari.Yari(room, {
+      announce: [
+        "http://peer.wallie.io/gun",
+        "https://relay.shogun-eco.xyz/gun",
+        "https://gun.defucc.me/gun",
+        "https://a.talkflow.team/gun"
+      ],
+      heartbeat: 15000
+    });
+
+    function addLog(msg, type = 'info') {
+      const log = document.getElementById('event-log');
+      const div = document.createElement('div');
+      div.className = 'log-entry log-' + type;
+      div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      log.appendChild(div);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function addMessage(addr, content, encrypted = true) {
+      const msgs = document.getElementById('messages');
+      const div = document.createElement('div');
+      div.className = encrypted ? 'message message-encrypted' : 'message';
+      div.innerHTML = `
+        <div class="message-address">${addr.slice(0, 12)}... ${encrypted ? '<span class="message-lock">🔐</span>' : ''}</div>
+        <div class="message-content">${content}</div>
+        <div class="message-time">${new Date().toLocaleTimeString()}</div>
+      `;
+      msgs.appendChild(div);
+      msgs.scrollTop = msgs.scrollHeight;
+    }
+
+    function updatePeers() {
+      const list = document.getElementById('peers-list');
+      const peers = Object.keys(yari.peers);
+      document.getElementById('peer-count').textContent = peers.length;
+      
+      if (peers.length === 0) {
+        list.innerHTML = '<div style="color: #666; text-align: center; padding: 20px;">Waiting for encrypted peers...</div>';
+      } else {
+        list.innerHTML = peers.map(p => `
+          <div class="peer-item">
+            <div class="peer-address">${p.slice(0, 32)}...</div>
+            <div class="peer-keys">🔑 ${yari.peers[p].pub.slice(0, 24)}...</div>
+          </div>`).join('');
+      }
+    }
+
+    yari.on('ready', () => {
+      document.getElementById('status').textContent = '⚔️  Connected! (Encrypted Mode 🔐)';
+      document.getElementById('status').className = 'status-connected';
+      document.getElementById('address').textContent = yari.address;
+      setTimeout(() => {
+        if (yari.sea) {
+          document.getElementById('sea-pub').textContent = yari.sea.pub.slice(0, 32) + '...';
+        }
+      }, 500);
+      addLog('Yari ready! Encrypted mode active (using dist/yari.umd.js)', 'encrypted');
+    });
+
+    yari.on('connections', count => {
+      document.getElementById('connections').textContent = count;
+    });
+
+    yari.events.on('newPeer', peers => {
+      addLog('Keys exchanged with ' + Object.keys(peers).length + ' peer(s)', 'encrypted');
+      updatePeers();
+    });
+
+    yari.yumi.on('decrypted', (addr, pubkeys, msg) => {
+      addLog('Decrypted message from ' + addr.slice(0, 12) + '...', 'encrypted');
+      addMessage(addr, msg.text || JSON.stringify(msg), true);
+    });
+
+    function sendMsg() {
+      const input = document.getElementById('message-input');
+      const text = input.value.trim();
+      if (text) {
+        yari.send({ type: 'chat', text: text });
+        addMessage(yari.address + ' (you)', text, true);
+        addLog('Sent encrypted: ' + text, 'encrypted');
+        input.value = '';
+      }
+    }
+
+    document.getElementById('send-button').onclick = sendMsg;
+    document.getElementById('message-input').onkeypress = e => {
+      if (e.key === 'Enter') sendMsg();
+    };
+
+    if (!window.location.hash) {
+      window.location.hash = room;
+    }
+
+    addLog('Initializing Yari (槍) encrypted session... (using compiled TypeScript)', 'info');
+  </script>
+</body>
+</html>
+

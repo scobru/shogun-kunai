@@ -1,173 +1,808 @@
-<p align="center"><img src="docs/bugout-logo.svg"/></p>
+# Yumi (弓) & Yari (槍) 🏹⚔️
 
-Browser-to-browser networking built on [WebTorrent](https://webtorrent.io/). Web service bug-out bag. **[Messageboard demo](https://chr15m.github.io/bugout/examples/messageboard.html)**. **[Bugout demo](https://chr15m.github.io/bugout)**.
+**Browser-to-browser P2P networking built on [GunDB](https://gun.eco/) via [Shogun Core](https://github.com/scobru/shogun-core).**
 
- * Easily send messages directly between browsers.
- * Write servers that run in a browser tab.
- * Host backend services without a VPS, domain or SSL cert.
- * Easy to deploy & "self-hosted" servers by leaving a browser tab open.
- * Client-server over WebRTC instead of HTTPS.
+ * 🌐 **Easily send messages directly between browsers** - No central server required
+ * 🖥️ **Write servers that run in a browser tab** - Backend services without infrastructure
+ * 🔐 **Optional end-to-end encryption** - Automatic encryption with Yari
+ * 🚀 **No VPS, domain, or SSL cert needed** - Deploy by opening a browser tab
+ * 🔄 **P2P over GunDB relays** - Decentralized message routing via Gun network
+ * 🔑 **Public key addressing** - Cryptographic identities using NaCl/TweetNaCl
+ * 📦 **TypeScript & Multiple Formats** - Written in TypeScript, builds to CJS/ESM/UMD
+ * 🔫 **Powered by Shogun Core** - Built on Shogun Core for enhanced GunDB capabilities
 
-### The old way:
+## Two Libraries, One Stack
 
-<p align="center"><img src="docs/bugout-old-way.svg"/></p>
+### Yumi (弓 - Bow)
+Core P2P messaging library using GunDB for peer discovery and message routing. Messages are **signed but not encrypted** by default. Like a bow launching arrows across the decentralized network.
 
-### The new way:
+### Yari (槍 - Spear) ⚔️
+Encrypted wrapper around Yumi that adds **automatic end-to-end encryption** using Gun SEA via Shogun Core. All messages are encrypted before transmission. Direct, precise, and protected like a spear. Public keys are automatically exchanged when peers connect.
 
-<p align="center"><img src="docs/bugout-new-way.svg"/></p>
+---
 
-[Bugout is a humble attempt to re-decentralize the web a little](https://chr15m.github.io/on-self-hosting-and-decentralized-software.html).
+## 📁 Project Organization
 
-This is a functional prototype. It's pre-alpha quality software. It will allow people to connect directly to your browser from outside your network. Be careful.
+This repository is organized for different use cases:
 
-[Demos](#demos) | [Install](#install) | [Use](#use) | [API documentation](./docs/API.md) | [Server boilerplate](#boilerplate) | [Deploy headless](#deploy)
+- **`src/`** - TypeScript source code for Yumi & Yari libraries
+- **`dist/`** - Compiled builds (CJS, ESM, UMD) - auto-generated
+- **`client/`** - Interactive Node.js CLI examples with readline
+- **`apps/`** - Beautiful browser demo applications (HTML + UMD)
+- **`relay/`** - Gun relay server for peer discovery and message routing
 
-## Demos
+Whether you're building a web app, Node.js service, or just exploring P2P, we've got you covered!
 
- * [Demo client](https://chr15m.github.io/bugout) (good for testing your server API).
- * [Demo server](https://chr15m.github.io/bugout/server.html).
- * Leave a message on the [message board demo](https://chr15m.github.io/bugout/examples/messageboard.html).
- * [Boilerplate single-page server code](https://github.com/chr15m/bugout/blob/master/docs/server-boilerplate.html).
+---
 
-## Install
+## Quick Start
 
-Using npm:
+> **✨ TypeScript!** Written in **TypeScript** and compiled to multiple formats (CommonJS, ES Modules, UMD). Works seamlessly in Node.js, browsers, and bundlers with full type definitions!
 
-```shell
-npm i bugout
+### Installation
+
+Using npm (recommended):
+
+```bash
+npm install shogun-yumi
 ```
 
-Script tag:
+Or with yarn:
+
+```bash
+yarn add shogun-yumi
+```
+
+The package includes all necessary dependencies (Shogun Core, TweetNaCl, bs58, etc.)
+
+### Node.js Usage
+
+**CommonJS:**
+```javascript
+const { Yumi, Yari } = require('shogun-yumi');
+
+// Yumi (弓): Plain P2P messaging
+const yumi = new Yumi('my-room');
+
+// Yari (槍): Encrypted P2P messaging
+const yari = new Yari('secret-room');
+```
+
+**ES Modules:**
+```javascript
+import { Yumi, Yari } from 'shogun-yumi';
+
+// Plain messaging
+const yumi = new Yumi('my-room');
+
+// Encrypted messaging
+const yari = new Yari('secret-room');
+```
+
+**TypeScript:**
+```typescript
+import { Yumi, Yari, YumiOptions } from 'shogun-yumi';
+
+const options: YumiOptions = {
+  announce: ["https://relay.shogun-eco.xyz/gun"],
+  heartbeat: 15000
+};
+
+const yumi = new Yumi('my-room', options);
+const yari = new Yari('secret-room', options);
+```
+
+### Browser Usage
+
+Include dependencies via CDN and use the UMD build:
 
 ```html
-<script src="https://chr15m.github.io/bugout/bugout.min.js"></script>
+<!-- Shogun Core (includes Gun + SEA) -->
+<script src="https://cdn.jsdelivr.net/npm/shogun-core@latest/dist/shogun-core.umd.js"></script>
+
+<!-- TweetNaCl for crypto -->
+<script src="https://cdn.jsdelivr.net/npm/tweetnacl@1.0.3/nacl-fast.min.js"></script>
+
+<!-- bs58 for address encoding (inline or CDN) -->
+<script src="https://cdn.jsdelivr.net/npm/bs58@4.0.1/index.js"></script>
+
+<!-- Yumi UMD build (plain P2P) - includes debug and events polyfills -->
+<script src="dist/yumi.umd.js"></script>
+
+<!-- Or Yari UMD build (encrypted P2P) - includes debug and events polyfills -->
+<script src="dist/yari.umd.js"></script>
+
+<script>
+  // Available as globals: Yumi and Yari
+  const yumi = new Yumi.Yumi('my-room');
+  // or for encrypted:
+  const yari = new Yari.Yari('secret-room');
+</script>
 ```
 
-Clojurescript:
+**💡 Tip:** Check out the ready-to-use demos in `apps/yumi.html` and `apps/yari.html`!
 
-```clojure
-:install-deps false
-:npm-deps {"bugout" "chr15m/bugout"}
-:foreign-libs [{:file "node_modules/bugout/docs/bugout.min.js"
-		:provides ["cljsjs.bugout"]
-		:global-exports {cljsjs.bugout Bugout}}]
+**Note:** The UMD builds include Node.js polyfills for `debug` and `events`, making them fully self-contained for browser use.
 
-(:require [cljsjs.bugout :as Bugout])
-```
+---
 
-## Use
+## Yumi (弓) Usage
+
+### Basic P2P Chat Room
 
 ```javascript
-var Bugout = require("bugout");
-```
+import { Yumi } from 'shogun-yumi';
+// Or: const { Yumi } = require('shogun-yumi');
 
-To create a Bugout server that runs in a browser tab:
-
-```javascript
-var b = new Bugout();
-
-// get the server address (public key hash) to share with clients
-// this is what clients will use to connect back to this server
-alert(b.address());
-
-// register an API call the remote user can make
-b.register("ping", function(address, args, callback) {
-  // modify the passed arguments and reply
-  args.hello = "Hello from " + b.address();
-  callback(args);
+// Create a room - all peers with same identifier connect
+const yumi = new Yumi("my-chat-room", {
+  announce: [
+    "http://peer.wallie.io/gun",
+    "https://relay.shogun-eco.xyz/gun",
+    "https://gun.defucc.me/gun"
+  ],
+  heartbeat: 15000
 });
 
-// save this server's session key seed to re-use
-localStorage["bugout-server-seed"] = b.seed;
+// Ready event
+yumi.on("ready", () => {
+  console.log("Connected! My address:", yumi.address());
+});
 
-// passing this back in to Bugout() means the
-// server-public-key stays the same between reloads
-// for example:
-// b = new Bugout({seed: localStorage["bugout-server-seed"]});
+// See new peers
+yumi.on("seen", (address) => {
+  console.log("Peer joined:", address);
+});
+
+// Receive messages
+yumi.on("message", (address, message) => {
+  console.log("Message from", address, ":", message);
+});
+
+// Send broadcast message
+yumi.send({ text: "Hello everyone!" });
+
+// Track connections
+yumi.on("connections", (count) => {
+  console.log("Connected peers:", count);
+});
 ```
 
-To start a client connection specify the server's public key to connect to (`b.address()` from the server):
+### RPC (Remote Procedure Calls)
 
 ```javascript
-var b = new Bugout("server-public-key");
+// Register an API function
+yumi.register("ping", (address, args, callback) => {
+  console.log("Ping from:", address);
+  callback({ pong: true, time: Date.now() });
+});
 
-// wait until we see the server
-// (can take a minute to tunnel through firewalls etc.)
-b.on("server", function(address) {
-  // once we can see the server
-  // make an API call on it
-  b.rpc("ping", {"hello": "world"}, function(result) {
-    console.log(result);
-    // {"hello": "world", "pong": true}
-    // also check result.error
+// Call a peer's RPC function
+yumi.on("seen", (address) => {
+  yumi.rpc(address, "ping", { hello: "world" }, (response) => {
+    console.log("RPC response:", response);
+  });
+});
+```
+
+### Persistent Identity
+
+```javascript
+// Save seed to maintain same address across sessions
+localStorage["my-yumi-seed"] = yumi.seed;
+
+// Restore identity next session
+const yumi = new Yumi("my-room", {
+  seed: localStorage["my-yumi-seed"]
+});
+```
+
+---
+
+## Yari (槍) Usage (Encrypted) ⚔️🔐
+
+### Encrypted P2P Chat
+
+```javascript
+import { Yari } from 'shogun-yumi';
+// Or: const { Yari } = require('shogun-yumi');
+
+// Create encrypted room
+const yari = new Yari("encrypted-room", {
+  announce: [
+    "http://peer.wallie.io/gun",
+    "https://relay.shogun-eco.xyz/gun"
+  ],
+  heartbeat: 15000
+});
+
+// Ready event
+yari.on("ready", () => {
+  console.log("⚔️  Encrypted session ready!");
+  console.log("Address:", yari.address);
+  console.log("SEA public key:", yari.sea.pub);
+});
+
+// Keys are automatically exchanged
+yari.events.on("newPeer", (peers) => {
+  console.log("🔑 Keys exchanged with", Object.keys(peers).length, "peer(s)");
+});
+
+// Listen for DECRYPTED messages
+yari.on("decrypted", (address, pubkeys, message) => {
+  console.log("🔓 Decrypted from:", address);
+  console.log("Message:", message);
+});
+
+// Send encrypted message (auto-encrypted for all peers)
+yari.send({ text: "This is encrypted!", secret: "data" });
+
+// Send to specific peer
+yari.send(peerAddress, { text: "Direct encrypted message" });
+```
+
+### Encrypted RPC
+
+```javascript
+// Register encrypted RPC function
+yari.register("secret-ping", (address, args, callback) => {
+  console.log("⚔️  Encrypted ping from:", address);
+  callback({ 
+    pong: true, 
+    encrypted: true,
+    yourSecret: args.secret 
   });
 });
 
-// save this client instance's session key seed to re-use
-localStorage["bugout-seed"] = JSON.stringify(b.seed);
-```
-
-Both clients and servers can interact with other connected clients:
-
-```javascript
-// receive all out-of-band messages from the server
-// or from any other another connected client
-b.on("message", function(address, message) {
-  console.log("message from", address, "is", message);
+// Call encrypted RPC
+yari.rpc(peerAddress, "secret-ping", { secret: "data" }, (response) => {
+  console.log("⚔️  Encrypted response:", response);
 });
+```
 
-// broadcast an unecrypted message to all connected clients
-b.send({"hello": "all!"});
+---
 
-// send an encrypted message to a specific client
-b.send(clientaddress, "Hello!");
+## Live Demos
 
-// whenever we see a new client in this swarm
-b.on("seen", function(address) {
-  // e.g. send a message to the client we've seen with this address
+### Browser Apps (HTML)
+
+Open these HTML files in your browser to try live P2P:
+
+- **`apps/yumi.html`** - Yumi (弓) Plain P2P chat with beautiful UI
+- **`apps/yari.html`** - Yari (槍) Encrypted P2P chat ⚔️🔐 with encryption indicators
+
+**Note:** These demos use the compiled UMD builds from `dist/`. Make sure to run `npm run build` first if you've modified the source code.
+
+### Node.js CLI Examples
+
+Interactive command-line examples for P2P messaging:
+
+```bash
+# Install dependencies first
+npm install
+
+# Build the project
+npm run build
+
+# Yumi (弓): Plain P2P CLI
+node client/yumi.js
+
+# Yari (槍): Encrypted P2P CLI
+node client/yari.js
+```
+
+Run multiple instances in different terminals to see them connect!
+
+### CLI Interactive Features
+
+The Node.js examples in `client/` provide interactive command-line interfaces:
+
+**Yumi CLI (`client/yumi.js`):**
+```bash
+🏹 > send Hello World!      # Broadcast message
+🏹 > peers                   # List connected peers  
+🏹 > ping <address>         # Ping a specific peer
+🏹 > info <address>         # Get peer information
+🏹 > quit                    # Exit gracefully
+```
+
+**Yari CLI (`client/yari.js`):**
+```bash
+⚔️  > send Secret message    # Broadcast encrypted message
+⚔️  > peers                  # List peers with exchanged keys
+⚔️  > ping <address>        # Encrypted ping/pong
+⚔️  > quit                   # Exit gracefully
+```
+
+These CLIs are perfect for:
+- Testing P2P connectivity
+- Building command-line tools
+- Server-side messaging
+- DevOps automation
+- Linux/Unix integration
+
+See [DEMOS.md](./DEMOS.md) for more detailed demo documentation.
+
+---
+
+## API Reference
+
+### Yumi (弓)
+
+#### Constructor
+```javascript
+new Yumi(identifier, options)
+```
+
+**Parameters:**
+- `identifier` (string): Room/swarm identifier. Use same ID for all peers that should connect.
+- `options` (object):
+  - `seed` (string): Seed for identity persistence (generates same address)
+  - `announce` (array): Gun relay server URLs
+  - `heartbeat` (number): Heartbeat interval in ms (default: 30000)
+  - `timeout` (number): Peer timeout in ms (default: 300000)
+  - `gun` (object): Existing Gun instance (optional)
+
+#### Methods
+
+- **`address()`** - Get your public address
+- **`send(message)`** - Broadcast message to all peers
+- **`send(address, message)`** - Send message to specific peer (encrypted)
+- **`register(name, fn)`** - Register RPC function
+- **`rpc(address, name, args, callback)`** - Call peer's RPC function
+- **`heartbeat(interval)`** - Start heartbeat timer
+- **`destroy(callback)`** - Clean up and disconnect
+- **`connections()`** - Get number of connected peers
+
+#### Events
+
+- **`ready`** - Connected and ready
+- **`seen(address)`** - New peer joined
+- **`left(address)`** - Peer disconnected
+- **`message(address, message, packet)`** - Received message
+- **`connections(count)`** - Peer count changed
+- **`ping(address)`** - Received ping
+- **`rpc(address, call, args, nonce)`** - Received RPC call
+- **`rpc-response(address, nonce, response)`** - Received RPC response
+
+### Yari (槍)
+
+#### Constructor
+```javascript
+new Yari(identifier, options)
+```
+
+Same parameters as Yumi, plus:
+- `seaPair` (object): Existing Gun SEA key pair (optional)
+
+#### Methods
+
+Same as Yumi, plus:
+- **`SEA(pair)`** - Set or generate SEA key pair
+
+#### Properties
+
+- **`sea`** - Gun SEA key pair (`pub`, `priv`, `epub`, `epriv`)
+- **`peers`** - Object mapping addresses to their public keys
+- **`yumi`** - Underlying Yumi instance
+
+#### Events
+
+All Yumi events, plus:
+- **`decrypted(address, pubkeys, message)`** - Received and decrypted message
+
+Use `yari.events.on()` for Yari-specific events:
+- **`newPeer(peers)`** - Keys exchanged with new peer
+
+---
+
+## TypeScript & Build System
+
+This library is written in **TypeScript** and compiled to multiple formats for maximum compatibility.
+
+### Project Structure
+
+```
+shogun-yumi/
+├── src/                    # TypeScript source
+│   ├── yumi.ts            # Yumi (弓) core - plain P2P
+│   ├── yari.ts            # Yari (槍) encryption layer
+│   ├── types.ts           # Type definitions
+│   ├── utils.ts           # Utility functions
+│   └── index.ts           # Main exports
+├── dist/                   # Compiled output
+│   ├── yumi.cjs.js        # CommonJS (Node.js)
+│   ├── yumi.esm.js        # ES Modules (bundlers)
+│   ├── yumi.umd.js        # UMD (browser)
+│   ├── yari.cjs.js        # Encrypted version (CommonJS)
+│   ├── yari.esm.js        # Encrypted version (ESM)
+│   ├── yari.umd.js        # Encrypted version (UMD)
+│   └── *.d.ts             # TypeScript definitions
+├── client/                 # Node.js CLI examples
+│   ├── yumi.js            # Yumi interactive CLI
+│   └── yari.js            # Yari encrypted CLI
+├── apps/                   # Browser demo apps
+│   ├── yumi.html          # Yumi UMD demo
+│   └── yari.html          # Yari UMD demo
+├── relay/                  # Gun relay server
+│   └── relay.js           # Relay server for peer discovery
+└── package.json
+```
+
+### Output Formats
+
+| Format | File | Use Case |
+|--------|------|----------|
+| **CommonJS** | `dist/*.cjs.js` | Node.js `require()` |
+| **ES Modules** | `dist/*.esm.js` | Modern bundlers (Webpack, Vite) |
+| **UMD** | `dist/*.umd.js` | Browser `<script>` tags |
+| **Types** | `dist/*.d.ts` | TypeScript support |
+
+### Building from Source
+
+```bash
+# Install dependencies
+npm install
+
+# Build all formats
+npm run build
+
+# Development (watch mode)
+npm run dev
+```
+
+See [TYPESCRIPT_BUILD.md](./TYPESCRIPT_BUILD.md) for detailed build documentation.
+
+---
+
+## Configuration
+
+> **Note:** Yumi & Yari use [Shogun Core](https://github.com/scobru/shogun-core) for GunDB initialization, providing enhanced configuration options and better defaults.
+
+### Custom Gun Relays
+
+```javascript
+const yumi = new Yumi("my-room", {
+  announce: [
+    "http://peer.wallie.io/gun",
+    "https://relay.shogun-eco.xyz/gun",
+    "https://gun.defucc.me/gun",
+    "https://a.talkflow.team/gun",
+    // Add your own Gun relay here
+  ]
 });
-
-// you can also close a bugout channel to stop receiving messages etc.
-b.close();
 ```
 
-Note that you can connect to a generic peer-to-peer swarm without a server by simply using a non-public-key identifier which can be any string as long as it's the same for every client connecting:
+### Heartbeat & Timeouts
 
 ```javascript
-var b = new Bugout("some shared swarm identifier");
+const yumi = new Yumi("my-room", {
+  heartbeat: 10000,  // Heartbeat every 10 seconds
+  timeout: 60000     // Consider peer dead after 60 seconds
+});
 ```
 
-### Boilerplate
+### Debug Logging
 
-The [quick-start boilerplate server in a single HTML file](https://github.com/chr15m/bugout/blob/master/docs/server-boilerplate.html) will quickly get you up and running with your own Bugout server.
+In Node.js:
+```bash
+DEBUG=yumi node example_yumi.js
+DEBUG=yari node example_yari.js
+```
 
-### Options
+In browser console:
+```javascript
+localStorage.debug = "yumi,yari";
+```
 
-See the [API documentation](./docs/API.md) for options.
+---
 
-### Turn on debug logging
+## How It Works
+
+1. **Initialization**: Yumi uses Shogun Core to initialize GunDB with optimal configuration
+2. **Identity**: Each peer generates an Ed25519 key pair (NaCl) for signing messages
+3. **Addressing**: Address = Base58Check(RIPEMD160(SHA512(publicKey)))
+4. **Discovery**: Peers announce presence on Gun relay at `gun.get('yumi-ROOM').get('presence')`
+5. **Messages**: Signed packets stored at `gun.get('yumi-ROOM').get('messages')`
+6. **Encryption** (Yari): Automatic ECDH key exchange using Shogun Core's SEA integration
+
+### Message Flow
+
+```
+[Peer A] ──sign with Ed25519──> [Gun Relay] ──Gun sync──> [Peer B]
+                                                              │
+                                                        verify signature
+                                                              │
+                                                        decrypt (if Yari)
+                                                              │
+                                                          emit 'message'
+```
+
+---
+
+## Security Notes
+
+⚠️ **Yumi (弓 - Plain)**:
+- Messages are **signed** but **NOT encrypted**
+- Anyone listening to the Gun relay can read messages
+- Use Yari for sensitive data
+
+✅ **Yari (槍 - Encrypted)**:
+- End-to-end encryption using Gun SEA via Shogun Core
+- Automatic ECDH key exchange
+- Messages encrypted before transmission
+- Only peers with exchanged keys can decrypt
+
+🔒 **Both**:
+- This is experimental software
+- Peer discovery means exposing your IP to Gun relays
+- Be cautious with sensitive data
+
+---
+
+## Deployment
+
+### Gun Relay Server
+
+Run your own Gun relay server to help peers discover each other:
+
+```bash
+# Start relay on default port 8765
+node relay/relay.js
+
+# Or specify a custom port
+node relay/relay.js 3000
+```
+
+The relay server provides:
+- HTTP status page at `http://localhost:8765/`
+- Gun endpoint at `http://localhost:8765/gun`
+- WebSocket support for real-time sync
+- Peer discovery and message routing
+
+Keep it running with PM2:
+```bash
+npm install -g pm2
+pm2 start relay/relay.js --name "gun-relay" -- 8765
+pm2 save
+pm2 startup
+```
+
+### Browser Tab Server
+
+Simply open `apps/yumi.html` or `apps/yari.html` in a browser - it's now a P2P node! Share the URL hash to let others connect.
+
+### Node.js CLI Server
+
+```bash
+# Plain P2P messaging
+node client/yumi.js
+
+# Encrypted P2P messaging
+node client/yari.js
+```
+
+Keep the process running with PM2:
+```bash
+npm install -g pm2
+pm2 start client/yumi.js --name "yumi-node"
+# or for encrypted:
+pm2 start client/yari.js --name "yari-node"
+pm2 save
+pm2 startup
+```
+
+---
+
+## Comparison: Yumi vs Yari
+
+| Feature | Yumi (弓) | Yari (槍) |
+|---------|-----------|-----------|
+| Meaning | Bow | Spear |
+| Transport | GunDB | GunDB |
+| Signing | ✅ Ed25519 | ✅ Ed25519 |
+| Encryption | ❌ No | ✅ Gun SEA (via Shogun Core) |
+| Use Case | Public chat, presence | Private messaging |
+| Overhead | Low | Medium (encryption) |
+| Key Exchange | Manual | Automatic |
+| Icon | 🏹 | ⚔️ |
+
+---
+
+## Dependencies
+
+- **shogun-core** - Unified interface for GunDB with SEA encryption, SHIP protocol, and Web3 integrations
+- **tweetnacl** - Crypto primitives (Ed25519, NaCl box) for signing and address generation
+- **bs58** / **bs58check** - Base58 encoding for addresses
+
+All dependencies are included when you `npm install bugout-gun`.
+
+### What is Shogun Core?
+
+[Shogun Core](https://github.com/scobru/shogun-core) provides:
+- 🔫 **GunDB Integration** - Decentralized database with relay network
+- 🔐 **SEA Encryption** - Gun's Security, Encryption, Authorization library
+- 🚢 **SHIP Protocol** - Standardized data structures for decentralized apps
+- 🌐 **Web3 Support** - Ethereum, IPFS, and blockchain integrations
+
+Yumi & Yari leverage Shogun Core for simplified GunDB setup and enhanced cryptographic capabilities.
+
+---
+
+## TypeScript Types
+
+The library includes complete TypeScript type definitions. Available types:
+
+```typescript
+import {
+  Yumi,
+  Yari,
+  YumiOptions,
+  PeerInfo,
+  MessagePacket,
+  SignedPacket,
+  EncryptedPacket,
+  SEAKeyPair,
+  YariPeerInfo,
+  RPCCallback,
+  APIFunction,
+  // Legacy aliases:
+  BugoutGun,
+  Bugoff,
+  BugoutOptions
+} from 'shogun-yumi';
+```
+
+See `dist/types.d.ts` for all available types.
+
+---
+
+## Contributing
+
+This library combines the best of:
+- Original Bugout's elegant API (chr15m)
+- Shogun Core's unified GunDB interface
+- GunDB's decentralized infrastructure  
+- Gun SEA's encryption capabilities via Shogun Core
+- TypeScript for type safety and developer experience
+- Japanese aesthetics: Yumi (弓 - Bow) & Yari (槍 - Spear)
+
+**Development Workflow:**
+
+1. Clone the repository
+2. Install dependencies: `npm install`
+3. Make changes in `src/`
+4. Build: `npm run build`
+5. Test your changes
+6. Submit a pull request
+
+**Areas for improvement:**
+- Better peer timeout handling
+- Message deduplication optimization
+- Alternative relay discovery mechanisms
+- Mobile browser support testing
+- Additional TypeScript examples
+- API documentation generation
+
+---
+
+## FAQ & Tips
+
+### Which format should I use?
+
+- **Node.js projects**: Use the automatic import/require - the package.json will select the right format
+- **Modern bundlers** (Webpack, Vite, Rollup): Automatically uses ESM format for tree-shaking
+- **Browser with script tag**: Use UMD files from `dist/*.umd.js`
+- **TypeScript projects**: All formats include `.d.ts` type definitions
+
+### How do I persist my identity?
 
 ```javascript
-localStorage.debug = "bugout";
+// Save seed to maintain same address across sessions
+localStorage.setItem('my-yumi-seed', yumi.seed);
+
+// Restore identity next time
+const yumi = new Yumi("my-room", {
+  seed: localStorage.getItem('my-yumi-seed')
+});
 ```
 
-## Deploy
+### Yumi vs Yari - which one?
 
-Bugout servers can deployed and run inside of browser tabs on long running PCs but you can also deploy them "headless" more like traditional servers. There are a couple of ways of doing that as follows:
+- Use **Yumi (弓)** for: Public channels, presence systems, collaborative apps, real-time updates
+- Use **Yari (槍)** for: Private messaging, encrypted data sync, sensitive information, secure communications
 
-### Headless browser server
+### Do I need to run my own Gun relay?
 
-[Bugout launcher](https://github.com/chr15m/bugout-launcher) is a nodejs based helper script to launch and run your Bugout servers from the command line using a headless browser instance.
+No! The library uses public Gun relays by default. However, you can add your own relays in the `announce` option for better performance and reliability.
 
-### Nodejs
+### Can I use this in React/Vue/Svelte?
 
-Check out [the nodejs demo](./docs/examples/node/) for an example of running a Bugout service under Node. Note that the `wrtc` library is not that stable at the time of writing and running Bugout in headless Chrome or Firefox seems to work better. Bugout servers running inside nodejs obviously won't have access to browser facilities like localStorage.
+Yes! The library works in any JavaScript framework. Import it like any npm package:
 
-## Stay updated
+```javascript
+import { Yumi, Yari } from 'shogun-yumi';
+```
 
-Subscribe at [bugout.network](https://bugout.network/) for updates and new releases.
+Just make sure to clean up connections when components unmount:
 
-## The FAMGA virus
+```javascript
+// In cleanup (useEffect return, onUnmounted, etc.)
+yumi.destroy();
+// or
+yari.destroy();
+```
+
+---
+
+## License
+
+MIT - See LICENSE file
+
+---
+
+## Credits
+
+Inspired by [Bugout by chr15m](https://github.com/chr15m/bugout) - reimagined for the Gun ecosystem with TypeScript, Shogun Core integration, and Japanese naming.
+
+Built on top of [Shogun Core](https://github.com/scobru/shogun-core) for enhanced GunDB and SEA capabilities.
+
+**Yumi (弓 - Bow)**: Launches messages across the decentralized network  
+**Yari (槍 - Spear)**: Direct, precise, and protected encrypted messaging ⚔️
+
+### Version History
+
+- **v1.0.0** - Complete rewrite with Japanese naming (Yumi & Yari)
+  - TypeScript implementation
+  - Multi-format builds (CJS/ESM/UMD)
+  - Complete type definitions
+  - Modern build system with Rollup
+  - Shogun Core integration for GunDB and SEA
+  - Gun SEA integration for Yari (encrypted)
+  - npm package: `shogun-yumi`
+  - ES Modules (no more CommonJS require)
+
+---
+
+## Shogun Core Benefits
+
+By integrating [Shogun Core](https://github.com/scobru/shogun-core), Yumi & Yari gain:
+
+### 🎯 **Simplified Configuration**
+- Pre-configured Gun relays with optimal settings
+- Automatic localStorage and RAD setup
+- No need to manually manage Gun instances
+
+### 🔐 **Enhanced Security**
+- Direct access to Gun SEA for encryption (Yari)
+- Consistent cryptographic operations
+- Better key management
+
+### 🚢 **SHIP Protocol Ready**
+- Compatible with Shogun ecosystem apps
+- Standardized data structures
+- Future-proof for decentralized app development
+
+### 🌐 **Web3 Integration** (Future)
+- Ethereum wallet integration potential
+- IPFS storage capabilities
+- Cross-chain communication possibilities
+
+---
+
+## Additional Resources
+
+- 📖 [TypeScript Build Documentation](./TYPESCRIPT_BUILD.md)
+- 🎮 [Demo Files](./DEMOS.md)
+- 🔧 [Source Code](./src/)
+- 🖥️ [CLI Examples](./client/)
+- 🌐 [Browser Apps](./apps/)
+- 🔌 [Relay Server](./relay/)
+- 📦 [npm Package](https://www.npmjs.com/package/shogun-yumi) (when published)
+- 🔫 [Shogun Core](https://github.com/scobru/shogun-core)
+- 🏹 [Original Bugout](https://github.com/chr15m/bugout)
+
+---
 
 > Infected with the [FAMGA](https://duckduckgo.com/?q=FAMGA) virus everybody's eating brains. Time to grab yr bugout box & hit the forest.
 
