@@ -48,7 +48,14 @@ export function toBase64(data: Uint8Array | Buffer): string {
   if (isNode && Buffer.isBuffer(data)) {
     return data.toString('base64');
   }
-  return btoa(String.fromCharCode.apply(null, Array.from(data)));
+  // Browser: use chunked approach to avoid stack overflow
+  const chunkSize = 8192; // 8KB chunks
+  let result = '';
+  for (let i = 0; i < data.length; i += chunkSize) {
+    const chunk = data.slice(i, i + chunkSize);
+    result += String.fromCharCode.apply(null, Array.from(chunk));
+  }
+  return btoa(result);
 }
 
 export function fromBase64(base64: string): Uint8Array | Buffer {

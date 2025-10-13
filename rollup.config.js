@@ -42,6 +42,63 @@ const pluginsBrowser = [
 ];
 
 export default [
+  // Kunai (苦無) - UMD (browser)
+  {
+    input: 'src/kunai.ts',
+    output: {
+      file: 'dist/kunai.umd.js',
+      format: 'umd',
+      name: 'Kunai',
+      exports: 'named',
+      globals: (id) => {
+        const globals = {
+          'tweetnacl': 'nacl',
+          'bs58': 'bs58',
+          'bs58check': 'bs58check',
+          'shogun-core': 'ShogunCore'
+        };
+        if (id.includes('yumi') && id.endsWith('yumi')) {
+          return 'Yumi';
+        }
+        return globals[id];
+      }
+    },
+    external: (id) => {
+      if (externalBrowser.includes(id)) return true;
+      if (id.includes('yumi') && id.endsWith('yumi')) return true;
+      return false;
+    },
+    plugins: pluginsBrowser
+  },
+  // Kunai - ESM
+  {
+    input: 'src/kunai.ts',
+    output: {
+      file: 'dist/kunai.esm.js',
+      format: 'es'
+    },
+    external: (id) => {
+      if (externalNode.includes(id)) return true;
+      if (id.includes('yumi') && id.endsWith('yumi')) return true;
+      return false;
+    },
+    plugins: pluginsNode
+  },
+  // Kunai - CommonJS
+  {
+    input: 'src/kunai.ts',
+    output: {
+      file: 'dist/kunai.cjs.js',
+      format: 'cjs',
+      exports: 'named'
+    },
+    external: (id) => {
+      if (externalNode.includes(id)) return true;
+      if (id.includes('yumi') && id.endsWith('yumi')) return true;
+      return false;
+    },
+    plugins: pluginsNode
+  },
   // Yumi (弓) - UMD (browser)
   {
     input: 'src/yumi.ts',

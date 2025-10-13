@@ -9,17 +9,20 @@ import nacl from "tweetnacl";
 import bs58 from "bs58";
 import bs58check from "bs58check";
 import { EventEmitter } from "events";
+import { ShogunCore } from "shogun-core";
 
-// Browser-safe debug function
+
+// Browser-safe debug function  
 let debug: any;
 try {
   // @ts-ignore - debug might not be available in browser
-  const Debug = require('debug');
-  debug = Debug("yumi");
+  const Debug = require?.('debug');
+  debug = Debug ? Debug("yumi") : () => {};
 } catch (e) {
   // Browser fallback - noop function
   debug = () => {};
 }
+
 import {
   BugoutOptions,
   PeerInfo,
@@ -28,7 +31,7 @@ import {
   EncryptedPacket,
   RPCCallback,
   APIFunction,
-} from "./types";
+} from "./types.js";
 import {
   isNode,
   now,
@@ -39,17 +42,7 @@ import {
   toBase64,
   fromBase64,
   ripemd160Hash,
-} from "./utils";
-
-// Import ShogunCore for Node.js, but handle browser case
-let ShogunCore: any;
-try {
-  const shogunModule = require('shogun-core');
-  ShogunCore = shogunModule.ShogunCore;
-} catch (e) {
-  // Browser: will use global Gun instead
-  ShogunCore = null;
-}
+} from "./utils.js";
 
 const PEERTIMEOUT = 5 * 60 * 1000;
 const SEEDPREFIX = "490a";
@@ -94,7 +87,7 @@ function bs58checkDecode(string: string): Uint8Array | Buffer {
 /**
  * Yumi (弓) - Multi-party data channels on GunDB
  */
-export class Yumi extends EventEmitter {
+class Yumi extends EventEmitter {
   announce: string[];
   nacl: typeof nacl;
   seed: string;
@@ -115,7 +108,8 @@ export class Yumi extends EventEmitter {
   channel: any;
   messages: any;
   presence: any;
-  shogun: ShogunCore;
+  shogun: any | null;
+  node: any | null;
 
   constructor(identifier?: string | BugoutOptions, opts?: BugoutOptions) {
     super();
@@ -127,13 +121,19 @@ export class Yumi extends EventEmitter {
     }
     opts = opts || {};
 
-    this.announce = opts.announce || [
-      "http://peer.wallie.io/gun",
-      "https://relay.shogun-eco.xyz/gun",
-      "https://v5g5jseqhgkp43lppgregcfbvi.srv.us/gun",
-      "https://gun.defucc.me/gun",
-      "https://a.talkflow.team/gun",
-    ];
+    // LocalOnly mode: disable external relays, use only LAN discovery
+    if (opts.localOnly) {
+      this.announce = [];
+      console.log('🏠 LocalOnly mode enabled - LAN discovery only (no external relays)');
+    } else {
+      this.announce = opts.announce || [
+        "http://peer.wallie.io/gun",
+        "https://relay.shogun-eco.xyz/gun",
+        "https://v5g5jseqhgkp43lppgregcfbvi.srv.us/gun",
+        "https://gun.defucc.me/gun",
+        "https://a.talkflow.team/gun",
+      ];
+    }
 
     this.nacl = nacl;
 
@@ -163,6 +163,7 @@ export class Yumi extends EventEmitter {
     this.callbacks = {};
     this.serveraddress = null;
     this.heartbeattimer = null;
+    this.node = null;
 
     debug("address", this.address());
     debug("identifier", this.identifier);
@@ -183,28 +184,34 @@ export class Yumi extends EventEmitter {
         radisk: opts.radisk !== undefined ? opts.radisk : true,
       });
       this.shogun = null as any;
-    } else if (ShogunCore) {
-      // Node.js: use ShogunCore
-      const config = {
+    } else {
+      // Node.js: try to load ShogunCore dynamically
+      this.shogun = new ShogunCore({
         gunOptions: {
           peers: this.announce,
           localStorage: opts.localStorage !== undefined ? opts.localStorage : false,
-          radisk: opts.radisk !== undefined ? opts.radisk : true,
-          wire: opts.wire !== undefined ? opts.wire : true,
-          axe: opts.axe !== undefined ? opts.axe : true,
-          webrtc: opts.webrtc !== undefined ? opts.webrtc : true,
+          radisk: opts.radisk !== undefined ? opts.radisk : false,
+          axe: opts.axe !== undefined ? opts.axe : false,
+          wire: opts.wire !== undefined ? opts.wire : false,
+          ws: opts.ws !== undefined ? opts.ws : false,
+          rtc: {
+            iceServers: [
+              {urls: 'stun:stun.l.google.com:19302'},
+              {urls: 'stun:stun.cloudflare.com:3478'},
+              {urls: 'stun:stun.services.mozilla.com'}
+            ]
+          }
         },
         disableAutoRecall: true,
         silent: true,
-      };
-      this.shogun = new ShogunCore(config);
+      });
+
       this.gun = this.shogun.gun;
-    } else {
-      throw new Error('No Gun instance available. Provide gun option or ensure Gun is loaded.');
     }
 
     // Create channel for this identifier
-    this.channel = this.gun.get("bugout-" + this.identifier);
+    // this.channel = this.gun.get("/RTC/" + this.identifier + "<?99");
+    this.channel = this.gun.get(this.identifier);
     this.messages = this.channel.get("messages");
     this.presence = this.channel.get("presence");
 
@@ -736,7 +743,7 @@ function sawPeer(
   }
 }
 
+// Exports
+export { Yumi };
 export default Yumi;
 
-// Legacy aliases for backward compatibility
-export { Yumi as BugoutGun };

@@ -14,6 +14,9 @@ export interface YumiOptions {
   wire?: boolean;
   axe?: boolean;
   webrtc?: boolean;
+  localOnly?: boolean;
+  ws?: boolean;
+  rtc?: boolean;
 }
 
 export interface PeerInfo {

@@ -1,23 +1,27 @@
-# Yumi (弓) & Yari (槍) 🏹⚔️
+# Yumi (弓), Yari (槍) & Kunai (苦無) 🏹⚔️🥷
 
 **Browser-to-browser P2P networking built on [GunDB](https://gun.eco/) via [Shogun Core](https://github.com/scobru/shogun-core).**
 
  * 🌐 **Easily send messages directly between browsers** - No central server required
  * 🖥️ **Write servers that run in a browser tab** - Backend services without infrastructure
  * 🔐 **Optional end-to-end encryption** - Automatic encryption with Yari
+ * 🥷 **Ephemeral file transfers** - Wormhole-style transfers with Kunai (no persistence)
  * 🚀 **No VPS, domain, or SSL cert needed** - Deploy by opening a browser tab
  * 🔄 **P2P over GunDB relays** - Decentralized message routing via Gun network
  * 🔑 **Public key addressing** - Cryptographic identities using NaCl/TweetNaCl
  * 📦 **TypeScript & Multiple Formats** - Written in TypeScript, builds to CJS/ESM/UMD
  * 🔫 **Powered by Shogun Core** - Built on Shogun Core for enhanced GunDB capabilities
 
-## Two Libraries, One Stack
+## Three Tools, One Stack
 
-### Yumi (弓 - Bow)
+### Yumi (弓 - Bow) 🏹
 Core P2P messaging library using GunDB for peer discovery and message routing. Messages are **signed but not encrypted** by default. Like a bow launching arrows across the decentralized network.
 
 ### Yari (槍 - Spear) ⚔️
 Encrypted wrapper around Yumi that adds **automatic end-to-end encryption** using Gun SEA via Shogun Core. All messages are encrypted before transmission. Direct, precise, and protected like a spear. Public keys are automatically exchanged when peers connect.
+
+### Kunai (苦無 - Throwing Knife) 🥷
+Ephemeral file transfer using Yumi for signaling. Files are streamed directly **without GunDB persistence**. Fast, temporary transfers like a ninja's throwing knife - quick, precise, and leaves no trace.
 
 ---
 
@@ -28,7 +32,13 @@ This repository is organized for different use cases:
 - **`src/`** - TypeScript source code for Yumi & Yari libraries
 - **`dist/`** - Compiled builds (CJS, ESM, UMD) - auto-generated
 - **`client/`** - Interactive Node.js CLI examples with readline
+  - `yumi.js` - Plain P2P messaging CLI
+  - `yari.js` - Encrypted P2P messaging CLI
+  - `kunai.js` - Ephemeral file transfer CLI
 - **`apps/`** - Beautiful browser demo applications (HTML + UMD)
+  - `yumi.html` - Plain P2P chat demo
+  - `yari.html` - Encrypted P2P chat demo
+  - `kunai.html` - File transfer demo
 - **`relay/`** - Gun relay server for peer discovery and message routing
 
 Whether you're building a web app, Node.js service, or just exploring P2P, we've got you covered!
@@ -262,6 +272,90 @@ yari.rpc(peerAddress, "secret-ping", { secret: "data" }, (response) => {
 
 ---
 
+## Kunai (苦無) Usage (Ephemeral File Transfer) 🥷
+
+### Quick File Transfer
+
+**Node.js CLI:**
+```bash
+# Terminal 1 (Sender)
+node client/kunai.js
+
+🥷 > send myfile.pdf
+# Outputs: Transfer code: 42-ninja-sakura
+
+# Terminal 2 (Receiver)  
+node client/kunai.js
+
+🥷 > receive
+# Auto-accepts when file is offered
+# File downloads automatically
+```
+
+**Browser:**
+```html
+<!-- Open apps/kunai.html in browser -->
+<!-- Select file, click Send -->
+<!-- Share the code: 42-ninja-sakura -->
+<!-- Other peer enters code and receives -->
+```
+
+### How It Works
+
+1. **Sender** selects file → generates one-time code (e.g., `42-ninja-sakura`)
+2. **Signaling via GunDB** → metadata exchange (file name, size, chunks)
+3. **Direct streaming** → file chunks sent without GunDB persistence
+4. **Auto-cleanup** → chunks deleted after 5 seconds
+5. **Receiver** assembles chunks → downloads file
+
+### Key Features
+
+✅ **No Persistence** - Files don't stay in GunDB  
+✅ **One-Time Codes** - Wormhole-style human-readable codes  
+✅ **Auto-Cleanup** - Chunks self-destruct after transfer  
+✅ **Progress Tracking** - Real-time transfer progress  
+✅ **Browser & Node.js** - Works everywhere  
+✅ **Optional E2E Encryption** - Use Yari for encrypted transfers  
+✅ **Custom Channels** - Private transfer rooms for teams  
+
+### Example: Encrypted File Transfer
+
+```javascript
+import { Kunai } from 'shogun-yumi';
+
+// Create encrypted Kunai (uses Yari E2E)
+const kunai = new Kunai('secure-transfer', {
+  encrypted: true,              // ← Enable encryption
+  channel: 'team-secret-room'   // ← Custom channel
+});
+
+// Send encrypted file
+kunai.on('ready', () => {
+  const file = fs.readFileSync('./secret.pdf');
+  const code = kunai.sendOffer(
+    { name: 'secret.pdf', size: file.length },
+    file
+  );
+  console.log('🔐 Encrypted transfer code:', code);
+  // Output: 67-samurai-tokyo
+});
+
+// Receive encrypted file (auto-accepts and decrypts)
+kunai.on('file-received', (result) => {
+  console.log('🔓 Decrypted file:', result.filename);
+  fs.writeFileSync('./received/' + result.filename, result.buffer);
+});
+```
+
+**CLI Usage:**
+```bash
+# Encrypted transfer
+node client/kunai.js --encrypted --channel=team-alpha
+🔐🥷 > send confidential.pdf
+```
+
+---
+
 ## Live Demos
 
 ### Browser Apps (HTML)
@@ -270,6 +364,7 @@ Open these HTML files in your browser to try live P2P:
 
 - **`apps/yumi.html`** - Yumi (弓) Plain P2P chat with beautiful UI
 - **`apps/yari.html`** - Yari (槍) Encrypted P2P chat ⚔️🔐 with encryption indicators
+- **`apps/kunai.html`** - Kunai (苦無) Ephemeral file transfer 🥷 with auto-cleanup
 
 **Note:** These demos use the compiled UMD builds from `dist/`. Make sure to run `npm run build` first if you've modified the source code.
 
@@ -289,6 +384,9 @@ node client/yumi.js
 
 # Yari (槍): Encrypted P2P CLI
 node client/yari.js
+
+# Kunai (苦無): Ephemeral File Transfer CLI
+node client/kunai.js
 ```
 
 Run multiple instances in different terminals to see them connect!
@@ -314,12 +412,20 @@ The Node.js examples in `client/` provide interactive command-line interfaces:
 ⚔️  > quit                   # Exit gracefully
 ```
 
+**Kunai CLI (`client/kunai.js`):**
+```bash
+🥷 > send myfile.pdf         # Send file (generates code)
+🥷 > receive                 # Listen for incoming transfers
+🥷 > quit                    # Exit gracefully
+```
+
 These CLIs are perfect for:
 - Testing P2P connectivity
 - Building command-line tools
 - Server-side messaging
 - DevOps automation
 - Linux/Unix integration
+- **Ephemeral file sharing** (Kunai)
 
 See [DEMOS.md](./DEMOS.md) for more detailed demo documentation.
 
@@ -594,18 +700,21 @@ pm2 startup
 
 ---
 
-## Comparison: Yumi vs Yari
+## Comparison: Yumi vs Yari vs Kunai
 
-| Feature | Yumi (弓) | Yari (槍) |
-|---------|-----------|-----------|
-| Meaning | Bow | Spear |
-| Transport | GunDB | GunDB |
-| Signing | ✅ Ed25519 | ✅ Ed25519 |
-| Encryption | ❌ No | ✅ Gun SEA (via Shogun Core) |
-| Use Case | Public chat, presence | Private messaging |
-| Overhead | Low | Medium (encryption) |
-| Key Exchange | Manual | Automatic |
-| Icon | 🏹 | ⚔️ |
+| Feature | Yumi (弓) | Yari (槍) | Kunai (苦無) |
+|---------|-----------|-----------|--------------|
+| Meaning | Bow | Spear | Throwing Knife |
+| Transport | GunDB | GunDB | GunDB (signaling only) |
+| Signing | ✅ Ed25519 | ✅ Ed25519 | ✅ Ed25519 |
+| Encryption | ❌ No | ✅ Gun SEA | ✅ Optional (via Yari) |
+| Persistence | ✅ Yes | ✅ Yes | ❌ Ephemeral |
+| Use Case | Chat, presence | Private messaging | File transfer |
+| Overhead | Low | Medium | Low (streaming) |
+| Key Exchange | Manual | Automatic | Automatic (if encrypted) |
+| Cleanup | Manual | Manual | ✅ Automatic |
+| Custom Channels | ✅ Yes | ✅ Yes | ✅ Yes |
+| Icon | 🏹 | ⚔️ | 🥷 |
 
 ---
 
@@ -707,10 +816,11 @@ const yumi = new Yumi("my-room", {
 });
 ```
 
-### Yumi vs Yari - which one?
+### Which tool should I use?
 
 - Use **Yumi (弓)** for: Public channels, presence systems, collaborative apps, real-time updates
 - Use **Yari (槍)** for: Private messaging, encrypted data sync, sensitive information, secure communications
+- Use **Kunai (苦無)** for: Quick file transfers, sharing documents, temporary data exchange (no persistence)
 
 ### Do I need to run my own Gun relay?
 
@@ -747,8 +857,9 @@ Inspired by [Bugout by chr15m](https://github.com/chr15m/bugout) - reimagined fo
 
 Built on top of [Shogun Core](https://github.com/scobru/shogun-core) for enhanced GunDB and SEA capabilities.
 
-**Yumi (弓 - Bow)**: Launches messages across the decentralized network  
-**Yari (槍 - Spear)**: Direct, precise, and protected encrypted messaging ⚔️
+**Yumi (弓 - Bow)**: Launches messages across the decentralized network 🏹  
+**Yari (槍 - Spear)**: Direct, precise, and protected encrypted messaging ⚔️  
+**Kunai (苦無 - Throwing Knife)**: Fast, ephemeral file transfers without persistence 🥷
 
 ### Version History
 
@@ -793,6 +904,7 @@ By integrating [Shogun Core](https://github.com/scobru/shogun-core), Yumi & Yari
 ## Additional Resources
 
 - 📖 [TypeScript Build Documentation](./TYPESCRIPT_BUILD.md)
+- 🥷 [Kunai File Transfer Guide](./KUNAI.md)
 - 🎮 [Demo Files](./DEMOS.md)
 - 🔧 [Source Code](./src/)
 - 🖥️ [CLI Examples](./client/)

@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Kunai (苦無) - Ephemeral File Transfer</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #0a0a0a;
+      color: #00ff00;
+    }
+    h1 { 
+      color: #ff4444; 
+      text-shadow: 0 0 10px #ff4444;
+      text-align: center;
+    }
+    .subtitle {
+      color: #888;
+      text-align: center;
+      margin-top: -10px;
+      font-size: 0.9em;
+    }
+    .container {
+      display: grid;
+      gap: 20px;
+      margin-top: 20px;
+    }
+    .panel {
+      background: #1a1a1a;
+      border: 1px solid #ff4444;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 0 20px rgba(255, 68, 68, 0.1);
+    }
+    .panel h2 {
+      margin-top: 0;
+      color: #ff4444;
+      font-size: 1.2em;
+      border-bottom: 1px solid #ff4444;
+      padding-bottom: 10px;
+    }
+    .info-item {
+      margin: 10px 0;
+      padding: 8px;
+      background: #0a0a0a;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 0.85em;
+    }
+    .info-label { color: #888; display: inline-block; width: 100px; }
+    .transfer-code {
+      font-size: 1.5em;
+      color: #ff4444;
+      font-weight: bold;
+      text-align: center;
+      padding: 20px;
+      background: #0a0a0a;
+      border-radius: 8px;
+      margin: 15px 0;
+      cursor: pointer;
+      border: 2px dashed #ff4444;
+    }
+    .transfer-code:hover {
+      background: #2a1a1a;
+      box-shadow: 0 0 20px rgba(255, 68, 68, 0.3);
+    }
+    button {
+      background: #ff4444;
+      color: #0a0a0a;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 1em;
+      transition: all 0.2s;
+      width: 100%;
+      margin: 5px 0;
+    }
+    button:hover { 
+      background: #ff6666; 
+      box-shadow: 0 0 10px rgba(255, 68, 68, 0.5); 
+    }
+    button:active { transform: scale(0.95); }
+    input[type="text"], input[type="file"] {
+      width: 100%;
+      padding: 10px;
+      background: #0a0a0a;
+      border: 1px solid #ff4444;
+      border-radius: 4px;
+      color: #00ff00;
+      font-family: monospace;
+      font-size: 1em;
+      margin: 10px 0;
+    }
+    input[type="file"] {
+      cursor: pointer;
+    }
+    .progress-bar {
+      width: 100%;
+      height: 30px;
+      background: #0a0a0a;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 10px 0;
+      display: none;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #ff4444, #ff6666);
+      width: 0%;
+      transition: width 0.3s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: bold;
+    }
+    #status {
+      padding: 10px;
+      background: #1a1a1a;
+      border-radius: 4px;
+      margin-bottom: 20px;
+      text-align: center;
+      font-weight: bold;
+      border: 1px solid #ff4444;
+    }
+    .status-connecting { color: #ffaa00; }
+    .status-connected { color: #00ff00; }
+    .log-entry {
+      padding: 6px 8px;
+      margin: 4px 0;
+      font-size: 0.85em;
+      border-radius: 3px;
+      background: #0a0a0a;
+      font-family: monospace;
+    }
+    .log-info { border-left: 3px solid #00aaff; }
+    .log-success { border-left: 3px solid #00ff00; }
+    .log-warning { border-left: 3px solid #ffaa00; }
+    .log-error { border-left: 3px solid #ff4444; }
+    #event-log {
+      height: 200px;
+      overflow-y: auto;
+      background: #0a0a0a;
+      padding: 10px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 0.85em;
+    }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <h1>🥷 Kunai (苦無) - Ephemeral File Transfer</h1>
+  <div class="subtitle">Fast P2P transfers without persistence - using Yumi signaling</div>
+  
+  <div id="status" class="status-connecting">🔄 Loading...</div>
+
+  <div class="container">
+    <!-- Send Panel -->
+    <div class="panel">
+      <h2>📤 Send File</h2>
+      <input type="file" id="file-input" accept="*/*">
+      <button id="send-button">🥷 Send File</button>
+      
+      <div id="transfer-code-display" class="hidden">
+        <p style="color: #888; text-align: center; margin-top: 20px;">
+          Share this code with the receiver:
+        </p>
+        <div class="transfer-code" id="transfer-code" onclick="copyCode()">
+          -
+        </div>
+      </div>
+
+      <div id="send-progress" class="progress-bar">
+        <div class="progress-fill" id="send-progress-fill">0%</div>
+      </div>
+    </div>
+
+    <!-- Receive Panel -->
+    <div class="panel">
+      <h2>📥 Receive File</h2>
+      <p style="color: #888;">Enter the transfer code to receive a file:</p>
+      <input type="text" id="code-input" placeholder="e.g., 42-alpha-bravo">
+      <button id="receive-button">📥 Receive File</button>
+      
+      <div id="receive-progress" class="progress-bar">
+        <div class="progress-fill" id="receive-progress-fill">0%</div>
+      </div>
+    </div>
+
+    <!-- Info Panel -->
+    <div class="panel">
+      <h2>📊 Node Info</h2>
+      <div class="info-item">
+        <span class="info-label">Address:</span>
+        <span id="address">-</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">Peers:</span>
+        <span id="connections">0</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">Mode:</span>
+        <span id="mode">Idle</span>
+      </div>
+    </div>
+
+    <!-- Event Log -->
+    <div class="panel">
+      <h2>📋 Transfer Log</h2>
+      <div id="event-log"></div>
+    </div>
+  </div>
+
+  <!-- Dependencies -->
+  <script src="https://cdn.jsdelivr.net/npm/shogun-core@3.3.5/dist/browser/shogun-core.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tweetnacl@1.0.3/nacl-fast.min.js"></script>
+  
+  <!-- bs58 minimal implementation -->
+  <script>
+    const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+    window.bs58 = {
+      encode: function(buffer) {
+        if (buffer.length === 0) return '';
+        const digits = [0];
+        for (let i = 0; i < buffer.length; i++) {
+          let carry = buffer[i];
+          for (let j = 0; j < digits.length; j++) {
+            carry += digits[j] << 8;
+            digits[j] = carry % 58;
+            carry = (carry / 58) | 0;
+          }
+          while (carry > 0) {
+            digits.push(carry % 58);
+            carry = (carry / 58) | 0;
+          }
+        }
+        let result = '';
+        for (let i = 0; buffer[i] === 0 && i < buffer.length - 1; i++) {
+          result += BASE58_ALPHABET[0];
+        }
+        for (let i = digits.length - 1; i >= 0; i--) {
+          result += BASE58_ALPHABET[digits[i]];
+        }
+        return result;
+      }
+    };
+  </script>
+
+  <!-- Yumi UMD -->
+  <script src="../dist/yumi.umd.js"></script>
+
+  <script>
+    const CHUNK_SIZE = 64 * 1024; // 64KB
+    const CLEANUP_DELAY = 5000;
+
+    class Kunai {
+      constructor(identifier, opts) {
+        this.yumi = new Yumi.Yumi(identifier + '-kunai', opts);
+        this.transfers = new Map();
+        this.receivedChunks = new Map();
+        this.setupHandlers();
+      }
+
+      setupHandlers() {
+        this.yumi.on('ready', () => {
+          document.getElementById('status').textContent = '🥷 Kunai Ready!';
+          document.getElementById('status').className = 'status-connected';
+          document.getElementById('address').textContent = this.yumi.address().slice(0, 24) + '...';
+          this.addLog('Kunai initialized - ready for transfers', 'success');
+        });
+
+        this.yumi.on('connections', count => {
+          document.getElementById('connections').textContent = count;
+        });
+
+        this.yumi.on('message', (address, msg) => {
+          if (msg.type === 'file-offer') {
+            this.handleFileOffer(address, msg);
+          } else if (msg.type === 'file-accept') {
+            this.handleFileAccept(address, msg);
+          } else if (msg.type === 'file-chunk') {
+            this.handleFileChunk(address, msg);
+          } else if (msg.type === 'transfer-complete') {
+            this.handleTransferComplete(address, msg);
+          }
+        });
+      }
+
+      generateCode() {
+        const words = [
+          'alpha', 'bravo', 'charlie', 'delta', 'echo', 'ninja',
+          'samurai', 'shogun', 'katana', 'sakura', 'tokyo', 'kyoto'
+        ];
+        const word1 = words[Math.floor(Math.random() * words.length)];
+        const word2 = words[Math.floor(Math.random() * words.length)];
+        const num = Math.floor(Math.random() * 100);
+        return `${num}-${word1}-${word2}`;
+      }
+
+      async sendFile(file) {
+        const transferId = this.generateCode();
+        const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+
+        this.addLog(`Sending: ${file.name} (${this.formatSize(file.size)})`, 'info');
+        
+        document.getElementById('transfer-code').textContent = transferId;
+        document.getElementById('transfer-code-display').classList.remove('hidden');
+        document.getElementById('send-progress').style.display = 'block';
+        document.getElementById('mode').textContent = 'Sending';
+
+        // Store transfer
+        this.transfers.set(transferId, {
+          file,
+          chunks: totalChunks,
+          sent: 0
+        });
+
+        // Send offer
+        this.yumi.send({
+          type: 'file-offer',
+          transferId,
+          filename: file.name,
+          size: file.size,
+          chunks: totalChunks
+        });
+
+        this.addLog(`Transfer code: ${transferId}`, 'success');
+      }
+
+      handleFileAccept(address, msg) {
+        const { transferId } = msg;
+        const transfer = this.transfers.get(transferId);
+        
+        if (!transfer) return;
+
+        this.addLog('Transfer accepted - streaming file...', 'success');
+        this.streamFile(transferId);
+      }
+
+      async streamFile(transferId) {
+        const transfer = this.transfers.get(transferId);
+        const reader = new FileReader();
+        let offset = 0;
+        let chunkIndex = 0;
+
+        const readNextChunk = () => {
+          if (offset >= transfer.file.size) {
+            this.yumi.send({
+              type: 'transfer-complete',
+              transferId
+            });
+            this.addLog('Transfer complete!', 'success');
+            document.getElementById('send-progress').style.display = 'none';
+            document.getElementById('mode').textContent = 'Idle';
+            this.transfers.delete(transferId);
+            return;
+          }
+
+          const chunk = transfer.file.slice(offset, offset + CHUNK_SIZE);
+          reader.readAsArrayBuffer(chunk);
+        };
+
+        reader.onload = (e) => {
+          const arrayBuffer = e.target.result;
+          const uint8Array = new Uint8Array(arrayBuffer);
+          const base64 = this.arrayBufferToBase64(uint8Array);
+
+          this.yumi.send({
+            type: 'file-chunk',
+            transferId,
+            index: chunkIndex,
+            data: base64,
+            total: transfer.chunks
+          });
+
+          // Update progress
+          const progress = ((chunkIndex + 1) / transfer.chunks * 100).toFixed(1);
+          document.getElementById('send-progress-fill').style.width = progress + '%';
+          document.getElementById('send-progress-fill').textContent = progress + '%';
+
+          offset += CHUNK_SIZE;
+          chunkIndex++;
+          readNextChunk();
+        };
+
+        readNextChunk();
+      }
+
+      handleFileOffer(address, msg) {
+        const { transferId, filename, size, chunks } = msg;
+        
+        this.addLog(`Incoming: ${filename} (${this.formatSize(size)})`, 'info');
+        this.addLog(`From: ${address.slice(0, 16)}...`, 'info');
+        this.addLog(`Code: ${transferId}`, 'warning');
+
+        // Auto-accept
+        this.receivedChunks.set(transferId, {
+          filename,
+          size,
+          chunks: [],
+          totalChunks: chunks,
+          receivedCount: 0
+        });
+
+        this.yumi.send({
+          type: 'file-accept',
+          transferId
+        });
+
+        document.getElementById('receive-progress').style.display = 'block';
+        document.getElementById('mode').textContent = 'Receiving';
+        this.addLog('Transfer accepted - receiving...', 'success');
+      }
+
+      handleFileChunk(address, msg) {
+        const { transferId, index, data, total } = msg;
+        const transfer = this.receivedChunks.get(transferId);
+
+        if (!transfer) return;
+
+        transfer.chunks[index] = this.base64ToArrayBuffer(data);
+        transfer.receivedCount++;
+
+        const progress = (transfer.receivedCount / total * 100).toFixed(1);
+        document.getElementById('receive-progress-fill').style.width = progress + '%';
+        document.getElementById('receive-progress-fill').textContent = progress + '%';
+
+        if (transfer.receivedCount === total) {
+          this.assembleFile(transferId);
+        }
+      }
+
+      assembleFile(transferId) {
+        const transfer = this.receivedChunks.get(transferId);
+        const blob = new Blob(transfer.chunks);
+
+        // Download file
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = transfer.filename;
+        a.click();
+        URL.revokeObjectURL(url);
+
+        this.addLog(`File saved: ${transfer.filename}`, 'success');
+        document.getElementById('receive-progress').style.display = 'none';
+        document.getElementById('mode').textContent = 'Idle';
+        this.receivedChunks.delete(transferId);
+      }
+
+      handleTransferComplete(address, msg) {
+        this.addLog('Sender confirmed completion', 'success');
+      }
+
+      arrayBufferToBase64(buffer) {
+        let binary = '';
+        const bytes = new Uint8Array(buffer);
+        for (let i = 0; i < bytes.length; i++) {
+          binary += String.fromCharCode(bytes[i]);
+        }
+        return btoa(binary);
+      }
+
+      base64ToArrayBuffer(base64) {
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+          bytes[i] = binary.charCodeAt(i);
+        }
+        return bytes.buffer;
+      }
+
+      formatSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+      }
+
+      addLog(msg, type = 'info') {
+        const log = document.getElementById('event-log');
+        const div = document.createElement('div');
+        div.className = 'log-entry log-' + type;
+        div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+        log.appendChild(div);
+        log.scrollTop = log.scrollHeight;
+      }
+    }
+
+    // Initialize
+    const kunai = new Kunai('kunai-demo', {
+      announce: [
+        "http://peer.wallie.io/gun",
+        "https://relay.shogun-eco.xyz/gun",
+        "https://gun.defucc.me/gun",
+        "https://a.talkflow.team/gun"
+      ],
+      heartbeat: 15000
+    });
+
+    // Send button
+    document.getElementById('send-button').onclick = () => {
+      const fileInput = document.getElementById('file-input');
+      if (fileInput.files.length === 0) {
+        alert('Please select a file first');
+        return;
+      }
+      kunai.sendFile(fileInput.files[0]);
+    };
+
+    // Receive button
+    document.getElementById('receive-button').onclick = () => {
+      const code = document.getElementById('code-input').value.trim();
+      if (!code) {
+        alert('Please enter a transfer code');
+        return;
+      }
+      kunai.addLog(`Waiting for transfer: ${code}`, 'info');
+      kunai.addLog('Auto-accepting when available...', 'info');
+    };
+
+    // Copy code to clipboard
+    function copyCode() {
+      const code = document.getElementById('transfer-code').textContent;
+      navigator.clipboard.writeText(code);
+      kunai.addLog('Code copied to clipboard!', 'success');
+    }
+  </script>
+</body>
+</html>
+

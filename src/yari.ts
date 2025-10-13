@@ -16,7 +16,7 @@ import { SEA as SHOGUN_SEA } from 'shogun-core';
 /**
  * Yari (槍) - Encrypted P2P messaging
  */
-export class Yari {
+class Yari {
   events: EventEmitter;
   ID: string;
   identifier: string;
@@ -57,9 +57,9 @@ export class Yari {
     this.heartbeat = this.yumi.heartbeat.bind(this.yumi);
 
     // Internal: handle encoded messages
-    this.events.on('encoded', (encrypted: [string, any]) => {
-      if (Array.isArray(encrypted) && encrypted.length === 2) {
-        // Direct message: [address, encrypted_data]
+    this.events.on('encoded', (encrypted: [string, any, string?]) => {
+      if (Array.isArray(encrypted) && encrypted.length >= 2) {
+        // Direct message: [address, encrypted_data, msgId (optional)]
         this.yumi.send(encrypted[0], encrypted[1]);
       } else {
         console.warn('Invalid encrypted format:', encrypted);
@@ -67,9 +67,11 @@ export class Yari {
     });
 
     // Internal: decrypt incoming messages and emit 'decrypted'
-    this.yumi.on('message', async (address: string, message: any, msgId?: string) => {
-      // Generate message ID if not provided
-      const messageId = msgId || `${Date.now()}-${address}-${Math.random().toString(36).substring(2, 9)}`;
+    this.yumi.on('message', async (address: string, message: any, msgId?: any) => {
+      // Generate message ID if not provided or if it's the packet object
+      const messageId = (typeof msgId === 'string' && msgId) 
+        ? msgId 
+        : `${Date.now()}-${address}-${Math.random().toString(36).substring(2, 9)}`;
       
       // Check for duplicate messages
       if (this.processedMessages.has(messageId)) {
@@ -118,20 +120,55 @@ export class Yari {
 
     // Automatically exchange keys when seeing a new peer
     this.yumi.on('seen', async (address: string) => {
+      console.log('👀 Yari saw new peer:', address.slice(0, 12) + '...');
+      
       // Make sure we have our own keys
       if (!this.sea) {
+        console.log('🔑 Generating SEA keys...');
         await this.SEA();
       }
 
       // Send our public keys to the peer
+      console.log('📤 Sending keys to peer:', address.slice(0, 12) + '...');
       this.rpc(address, 'peer', {
         pub: this.sea!.pub,
         epub: this.sea!.epub
       }, (response: any) => {
         if (response && response.success) {
           console.log('🔑 Keys exchanged with:', address.slice(0, 12) + '...');
+        } else {
+          console.log('❌ Key exchange failed with:', address.slice(0, 12) + '...');
         }
       });
+    });
+
+    // Also try to exchange keys on 'connections' event
+    this.yumi.on('connections', (count: number) => {
+      console.log('🔗 Yari connections changed:', count);
+      if (count > 0) {
+        // Try to exchange keys with all known peers
+        const peerAddresses = Object.keys(this.yumi.peers);
+        console.log('📋 Known peer addresses:', peerAddresses.map(a => a.slice(0, 12) + '...'));
+        
+        peerAddresses.forEach(async (address) => {
+          if (!this.peers[address]) {
+            console.log('🔄 Attempting key exchange with:', address.slice(0, 12) + '...');
+            // Make sure we have our own keys
+            if (!this.sea) {
+              await this.SEA();
+            }
+            
+            this.rpc(address, 'peer', {
+              pub: this.sea!.pub,
+              epub: this.sea!.epub
+            }, (response: any) => {
+              if (response && response.success) {
+                console.log('🔑 Keys exchanged with:', address.slice(0, 12) + '...');
+              }
+            });
+          }
+        });
+      }
     });
 
     // Initialize SEA keys
@@ -144,6 +181,11 @@ export class Yari {
       this.cleanupInterval = setInterval(() => {
         this.cleanupProcessedMessages();
       }, 5 * 60 * 1000);
+
+      // Send periodic pings to help with peer discovery
+      setInterval(() => {
+        this.yumi.ping();
+      }, 10000); // Ping every 10 seconds
     }).catch((e) => {
       console.error('Failed to initialize SEA:', e);
     });
@@ -165,11 +207,19 @@ export class Yari {
    * Send encrypted message
    */
   async send(address?: string | any, message?: any): Promise<void> {
-    // Wait for at least one peer to be ready
+    // Wait for at least one peer to be ready, but with a timeout
     if (Object.keys(this.peers).length === 0) {
-      await new Promise<void>((resolve) => {
-        this.events.once('newPeer', () => resolve());
-      });
+      await Promise.race([
+        new Promise<void>((resolve) => {
+          this.events.once('newPeer', () => resolve());
+        }),
+        new Promise<void>((resolve) => {
+          setTimeout(() => {
+            console.log('⚠️ No peers found after 5s, sending anyway (message will be stored in GunDB)');
+            resolve();
+          }, 5000);
+        })
+      ]);
     }
 
     // Generate unique message ID for tracking
@@ -180,7 +230,15 @@ export class Yari {
       const msg = address;
       console.log('📡 Broadcasting encrypted message:', msgId.slice(0, 12) + '...');
 
-      const promises = Object.keys(this.peers).map(async (peer) => {
+      const peerKeys = Object.keys(this.peers);
+      if (peerKeys.length === 0) {
+        console.log('⚠️ No peers available for encryption, storing message in GunDB for later pickup');
+        // Store the message in GunDB without encryption as a fallback
+        this.yumi.send(msg);
+        return;
+      }
+
+      const promises = peerKeys.map(async (peer) => {
         try {
           const secret = await SHOGUN_SEA.secret(this.peers[peer].epub, this.sea!) as string;
           const enc = await SHOGUN_SEA.encrypt(msg, secret);
@@ -280,8 +338,8 @@ export class Yari {
 
 }
 
+// Exports
+export { Yari };
 export default Yari;
 
-// Legacy alias for backward compatibility
-export { Yari as Bugoff };
 

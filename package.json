@@ -1,7 +1,7 @@
 {
   "name": "shogun-yumi",
   "version": "1.0.0",
-  "description": "Yumi (弓) & Yari (槍) - P2P messaging on GunDB. Yumi for plain messaging, Yari for encrypted communication. Built on Shogun Core.",
+  "description": "Yumi (弓), Yari (槍) & Kunai (苦無) - P2P on GunDB. Yumi for messaging, Yari for encryption, Kunai for ephemeral file transfer. Built on Shogun Core.",
   "type": "module",
   "main": "dist/yumi.cjs.js",
   "module": "dist/yumi.esm.js",
@@ -29,14 +29,19 @@
     "encrypted",
     "webrtc",
     "browser",
-    "messaging"
+    "messaging",
+    "file-transfer",
+    "ephemeral",
+    "wormhole"
   ],
   "author": "",
   "license": "MIT",
   "dependencies": {
     "bs58": "^4.0.1",
     "bs58check": "^2.1.2",
-    "shogun-core": "^3.3.5",
+    "node-webrtc": "^0.0.0",
+    "peerjs": "^1.5.5",
+    "shogun-core": "^3.3.6",
     "tweetnacl": "^1.0.3"
   },
   "devDependencies": {
@@ -44,6 +49,8 @@
     "@rollup/plugin-json": "^6.1.0",
     "@rollup/plugin-node-resolve": "^15.2.3",
     "@rollup/plugin-typescript": "^11.1.6",
+    "@types/bs58": "^4.0.4",
+    "@types/bs58check": "^2.1.2",
     "@types/node": "^20.11.5",
     "debug": "^4.3.4",
     "inherits": "^2.0.4",

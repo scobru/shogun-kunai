@@ -1,0 +1,24 @@
+🥷 Kunai (苦無) Test File
+
+This is a test file for demonstrating ephemeral P2P file transfer.
+
+Kunai uses:
+- Yumi for signaling
+- Direct streaming without GunDB persistence
+- Auto-cleanup after 5 seconds
+- Wormhole-style transfer codes
+
+Example usage:
+  Terminal 1: node examples/kunai-example.js send examples/test-file.txt
+  Terminal 2: node examples/kunai-example.js receive
+
+The file will be transferred quickly and leave no trace in the GunDB graph!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ Yumi (弓) - Bow      → Messaging
+ Yari (槍) - Spear    → Encryption  
+ Kunai (苦無) - Knife → Ephemeral Transfer
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Like a ninja's throwing knife - fast, precise, leaves no trace. 🥷⚡
+
