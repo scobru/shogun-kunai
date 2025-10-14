@@ -80,20 +80,14 @@ class Yari {
       }
       this.processedMessages.add(messageId);
 
-      console.log('🔒 Encrypted message received from:', address.slice(0, 12) + '...');
-      console.log('   Message ID:', messageId.slice(0, 12) + '...');
-      console.log('   Encrypted data:', typeof message, JSON.stringify(message).slice(0, 60) + '...');
+      // console.log('🔒 Encrypted message received from:', address.slice(0, 12) + '...');
 
       try {
         const decrypted = await this.decrypt(address, message);
         if (decrypted) {
-          console.log('✅ Decryption successful!');
-
           // Emit decrypted message with message ID
           this.yumi.emit('decrypted', decrypted.address, decrypted.pubkeys, decrypted.message, messageId);
           this.events.emit('decrypted', decrypted.address, decrypted.pubkeys, decrypted.message, messageId);
-        } else {
-          console.log('❌ Decryption returned null');
         }
       } catch (e) {
         console.error('❌ Decryption error for peer', address.slice(0, 12) + '...:', e);
@@ -108,51 +102,40 @@ class Yari {
           epub: sea.epub
         };
 
-        console.log('🔐 Peer keys registered:', address.slice(0, 12) + '...');
         this.events.emit('newPeer', this.peers);
 
         if (cb) cb({ success: true });
       } else {
-        console.error('Invalid SEA keys from peer:', address);
         if (cb) cb({ success: false, error: 'Invalid keys' });
       }
     });
 
     // Automatically exchange keys when seeing a new peer
     this.yumi.on('seen', async (address: string) => {
-      console.log('👀 Yari saw new peer:', address.slice(0, 12) + '...');
-      
       // Make sure we have our own keys
       if (!this.sea) {
-        console.log('🔑 Generating SEA keys...');
         await this.SEA();
       }
 
       // Send our public keys to the peer
-      console.log('📤 Sending keys to peer:', address.slice(0, 12) + '...');
       this.rpc(address, 'peer', {
         pub: this.sea!.pub,
         epub: this.sea!.epub
       }, (response: any) => {
         if (response && response.success) {
           console.log('🔑 Keys exchanged with:', address.slice(0, 12) + '...');
-        } else {
-          console.log('❌ Key exchange failed with:', address.slice(0, 12) + '...');
         }
       });
     });
 
     // Also try to exchange keys on 'connections' event
     this.yumi.on('connections', (count: number) => {
-      console.log('🔗 Yari connections changed:', count);
       if (count > 0) {
         // Try to exchange keys with all known peers
         const peerAddresses = Object.keys(this.yumi.peers);
-        console.log('📋 Known peer addresses:', peerAddresses.map(a => a.slice(0, 12) + '...'));
         
         peerAddresses.forEach(async (address) => {
           if (!this.peers[address]) {
-            console.log('🔄 Attempting key exchange with:', address.slice(0, 12) + '...');
             // Make sure we have our own keys
             if (!this.sea) {
               await this.SEA();
@@ -174,8 +157,6 @@ class Yari {
     // Initialize SEA keys
     this.SEA().then(() => {
       console.log('✅ Yari initialized (encrypted mode)');
-      console.log('   Address:', this.address);
-      console.log('   SEA pub:', this.sea!.pub.slice(0, 20) + '...');
       
       // Start cleanup timer (every 5 minutes)
       this.cleanupInterval = setInterval(() => {

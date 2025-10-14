@@ -100,12 +100,6 @@ export class Kunai extends EventEmitter {
       
       console.log(`📥 File detected: ${metadata.name} (${metadata.totalChunks} chunks)`);
       
-      // Check if we already processed this file
-      const processedKey = `processed-${fileId}`;
-      if (this.yumi.gun.get(processedKey).put) {
-        this.yumi.gun.get(processedKey).put(true);
-      }
-      
       let receivedChunks: { [key: number]: string } = {};
       let collectedChunks = 0;
       let isProcessing = false;
@@ -116,14 +110,11 @@ export class Kunai extends EventEmitter {
           if (!receivedChunks[chunk.index]) {
             receivedChunks[chunk.index] = chunk.data;
             collectedChunks++;
-            
-            console.log(`📦 Received chunk ${chunk.index + 1}/${metadata.totalChunks} for ${metadata.name}`);
           }
           
           // If all chunks received, reassemble file
           if (collectedChunks === metadata.totalChunks) {
             isProcessing = true;
-            console.log(`✅ All chunks received for ${metadata.name}. Reassembling...`);
             
             // Rebuild the Base64 string in correct order
             let base64String = '';
@@ -132,7 +123,6 @@ export class Kunai extends EventEmitter {
               if (receivedChunks[i]) {
                 base64String += receivedChunks[i];
               } else {
-                console.log(`❌ Missing chunk ${i} for ${metadata.name}`);
                 allChunksPresent = false;
                 break;
               }
@@ -167,7 +157,7 @@ export class Kunai extends EventEmitter {
                 fileId: fileId
               });
               
-              console.log(`🎉 File received successfully: ${metadata.name} (${metadata.size} bytes)`);
+              console.log(`🎉 File received: ${metadata.name} (${formatSize(metadata.size)})`);
             } catch (error) {
               console.error(`❌ Error decoding file ${metadata.name}:`, error);
             }
@@ -201,7 +191,6 @@ export class Kunai extends EventEmitter {
       sender: this.address()
     };
     
-    console.log('💾 Saving metadata to GunDB:', metadata);
     this.yumi.gun.get('files').get(fileId).put(metadata);
 
     // 2. Save all the chunks
@@ -214,7 +203,6 @@ export class Kunai extends EventEmitter {
         timestamp: Date.now()
       };
       
-      console.log(`💾 Saving chunk ${i + 1}/${totalChunks} (${chunk.length} chars)`);
       fileChunksNode.set(chunkData);
     }
 
@@ -253,12 +241,21 @@ export class Kunai extends EventEmitter {
       return Buffer.from(bytes).toString('base64');
     } else {
       // Browser: use btoa
-    let binary = '';
-    for (let i = 0; i < bytes.length; i++) {
-      binary += String.fromCharCode(bytes[i]);
+      let binary = '';
+      for (let i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      return btoa(binary);
     }
-    return btoa(binary);
   }
+
+  /**
+   * Format file size
+   */
+  private formatSize(bytes: number): string {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
   }
 
   /**

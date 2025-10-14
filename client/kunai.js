@@ -177,10 +177,14 @@ kunai.on('ready', () => {
 });
 
 kunai.on('connections', (count) => {
-  console.log(`🔗 Connections: ${count} peer(s)`);
+  if (count > 0) {
+    console.log(`🔗 Connections: ${count} peer(s)`);
+  }
   if (encrypted && kunai.yari) {
     const encryptedPeers = Object.keys(kunai.yari.peers).length;
-    console.log(`🔐 Encrypted peers: ${encryptedPeers}`);
+    if (encryptedPeers > 0) {
+      console.log(`🔐 Encrypted peers: ${encryptedPeers}`);
+    }
   }
 });
 
