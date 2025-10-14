@@ -99,7 +99,7 @@ export class Kunai extends EventEmitter {
   constructor(identifier?: string, opts?: KunaiOptions) {
     super();
     
-    // Load WebRTC for Node.js
+    // Load WebRTC for Node.js (only once)
     this.loadWebRTC();
     
     // Default identifier or custom channel
@@ -122,9 +122,6 @@ export class Kunai extends EventEmitter {
     }
 
     this.setupHandlers();
-    
-    // Load WebRTC for Node.js
-    this.loadWebRTC();
   }
 
   private loadWebRTC(): void {
@@ -153,9 +150,14 @@ export class Kunai extends EventEmitter {
         }
         
         // Fallback to PeerJS
-        console.log('🔍 Attempting to load PeerJS...');
-        this.RTCPeerConnection = Peer;
-        console.log('🌐 PeerJS loaded for Node.js (fallback)');
+        try {
+          console.log('🔍 Attempting to load PeerJS...');
+          this.RTCPeerConnection = Peer;
+          console.log('🌐 PeerJS loaded for Node.js (fallback)');
+        } catch (peerError) {
+          console.log('❌ PeerJS also failed:', peerError instanceof Error ? peerError.message : String(peerError));
+          this.RTCPeerConnection = null;
+        }
       } else {
         // Browser environment - use native WebRTC
         this.RTCPeerConnection = window.RTCPeerConnection;
@@ -236,6 +238,13 @@ export class Kunai extends EventEmitter {
       return;
     }
     this.processedMessages.add(msgId);
+    
+    // Cleanup old messages to prevent memory leaks (keep last 1000)
+    if (this.processedMessages.size > 1000) {
+      const messagesArray = Array.from(this.processedMessages);
+      const toDelete = messagesArray.slice(0, messagesArray.length - 500);
+      toDelete.forEach(id => this.processedMessages.delete(id));
+    }
 
     switch (msg.type) {
       case 'file-offer':
@@ -274,7 +283,7 @@ export class Kunai extends EventEmitter {
     console.log('🌐 Received WebRTC offer from:', address.slice(0, 12) + '...');
     
     if (this.RTCPeerConnection === null) {
-      console.log('❌ WebRTC not available in Node.js, ignoring offer');
+      console.log('❌ WebRTC not available, ignoring offer');
       return;
     }
     
@@ -295,10 +304,18 @@ export class Kunai extends EventEmitter {
         conn.on('open', () => {
           console.log('🌐 PeerJS data channel opened with:', address.slice(0, 12) + '...');
         });
+        
+        conn.on('error', (error: any) => {
+          console.error('❌ PeerJS connection error:', error);
+        });
+      });
+      
+      peer.on('error', (error: any) => {
+        console.error('❌ PeerJS peer error:', error);
       });
       
       // Send answer back
-      this.sendMessage({
+      await this.sendMessage({
         type: 'webrtc-answer',
         transferId: msg.transferId,
         peerId: peer.id
@@ -407,7 +424,7 @@ export class Kunai extends EventEmitter {
     if (!transfer) return;
     
     const dataChannel = this.webrtcDataChannels.get(address);
-    if (!dataChannel || dataChannel.readyState !== 'open') return;
+    if (!dataChannel || (dataChannel.readyState && dataChannel.readyState !== 'open')) return;
     
     const start = chunkIndex * this.chunkSize;
     const end = Math.min(start + this.chunkSize, transfer.file.size);
@@ -553,7 +570,8 @@ export class Kunai extends EventEmitter {
         } else {
           // Broadcast to all peers
           console.log('🔐 Broadcasting to all peers...');
-          await this.yari.send(message);
+          const sendResult = await this.yari.send(message);
+          console.log('🔍 Yari.send result:', sendResult);
         }
         console.log('✅ Encrypted message sent successfully');
       } catch (error) {
@@ -794,15 +812,39 @@ export class Kunai extends EventEmitter {
     let offset = 0;
     let chunkIndex = 0;
 
+    console.log(`📦 Starting to stream ${transfer.chunks} chunks from ArrayBuffer...`);
+    console.log(`🔧 Debug: this.chunkSize=${this.chunkSize}, transfer.chunkSize=${transfer.chunkSize}, buffer.length=${buffer.length}`);
+
     while (offset < buffer.length) {
-      const chunkEnd = Math.min(offset + this.chunkSize, buffer.length);
+      // Use the transfer's chunk size, not the instance chunk size
+      const actualChunkSize = transfer.chunkSize || this.chunkSize;
+      const chunkEnd = Math.min(offset + actualChunkSize, buffer.length);
       const chunk = buffer.slice(offset, chunkEnd);
       
-      await this.sendChunk(transferId, chunkIndex, chunk, transfer.chunks);
+      console.log(`📤 Sending chunk ${chunkIndex + 1}/${transfer.chunks} (${chunk.length} bytes)`);
+      console.log(`🔍 Loop state: offset=${offset}, chunkEnd=${chunkEnd}, actualChunkSize=${actualChunkSize}, buffer.length=${buffer.length}`);
+      
+      try {
+        await this.sendChunk(transferId, chunkIndex, chunk, transfer.chunks);
+        console.log(`✅ Chunk ${chunkIndex + 1} sent successfully`);
+      } catch (error) {
+        console.error(`❌ Failed to send chunk ${chunkIndex + 1}:`, error);
+        throw error;
+      }
       
       offset = chunkEnd;
       chunkIndex++;
+      
+      console.log(`🔄 After chunk ${chunkIndex}: offset=${offset}, chunkIndex=${chunkIndex}, buffer.length=${buffer.length}`);
+
+      // Add small delay between chunks for encrypted mode to prevent overwhelming
+      if (this.encrypted && chunkIndex < transfer.chunks) {
+        console.log(`⏳ Adding delay before next chunk...`);
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
     }
+
+    console.log(`🏁 All ${transfer.chunks} chunks sent, sending transfer-complete...`);
 
     // Complete
     await this.sendMessage({
@@ -822,14 +864,28 @@ export class Kunai extends EventEmitter {
     let offset = 0;
     let chunkIndex = 0;
 
+    console.log(`📦 Starting to stream ${transfer.chunks} chunks...`);
+    console.log(`🔧 Debug: this.chunkSize=${this.chunkSize}, transfer.chunkSize=${transfer.chunkSize}, file.size=${file.size}`);
+
     while (offset < file.size) {
-      const chunk = file.slice(offset, offset + this.chunkSize);
+      // Use the transfer's chunk size, not the instance chunk size
+      const actualChunkSize = transfer.chunkSize || this.chunkSize;
+      const chunk = file.slice(offset, offset + actualChunkSize);
       const arrayBuffer = await chunk.arrayBuffer();
       const uint8Array = new Uint8Array(arrayBuffer);
 
-      await this.sendChunk(transferId, chunkIndex, uint8Array, transfer.chunks);
+      console.log(`📤 Sending chunk ${chunkIndex + 1}/${transfer.chunks} (${uint8Array.length} bytes)`);
+      console.log(`🔍 Loop state: offset=${offset}, actualChunkSize=${actualChunkSize}, file.size=${file.size}`);
+      
+      try {
+        await this.sendChunk(transferId, chunkIndex, uint8Array, transfer.chunks);
+        console.log(`✅ Chunk ${chunkIndex + 1} sent successfully`);
+      } catch (error) {
+        console.error(`❌ Failed to send chunk ${chunkIndex + 1}:`, error);
+        throw error;
+      }
 
-      offset += this.chunkSize;
+      offset += actualChunkSize;
       chunkIndex++;
 
       // Progress
@@ -839,7 +895,14 @@ export class Kunai extends EventEmitter {
         total: transfer.chunks,
         percent: (chunkIndex / transfer.chunks * 100).toFixed(1)
       });
+
+      // Add small delay between chunks for encrypted mode to prevent overwhelming
+      if (this.encrypted && chunkIndex < transfer.chunks) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
     }
+
+    console.log(`🏁 All ${transfer.chunks} chunks sent, sending transfer-complete...`);
 
     // Complete
     await this.sendMessage({
@@ -861,7 +924,11 @@ export class Kunai extends EventEmitter {
     total: number
   ): Promise<void> {
     try {
+      console.log(`🔧 sendChunk called: index=${index}, chunk.length=${chunk.length}, total=${total}`);
+      
       const base64 = this.arrayBufferToBase64(chunk);
+      
+      console.log(`🔐 Sending chunk ${index + 1}/${total} (${chunk.length} bytes, base64: ${base64.length} chars)`);
 
       await this.sendMessage({
         type: 'file-chunk',
@@ -871,8 +938,12 @@ export class Kunai extends EventEmitter {
         total
       });
 
+      console.log(`✅ Chunk ${index + 1} message sent successfully`);
+
       // Schedule cleanup
       this.scheduleChunkCleanup(transferId, index);
+      
+      console.log(`🏁 sendChunk completed for index ${index}`);
     } catch (error) {
       if (error instanceof RangeError && error.message.includes('Maximum call stack size exceeded')) {
         console.log(`⚠️ Chunk too large for encryption, splitting chunk ${index}...`);
@@ -956,6 +1027,8 @@ export class Kunai extends EventEmitter {
       from: address.slice(0, 12) + '...'
     });
 
+    console.log(`📥 Processing chunk ${index + 1}/${total} for transfer ${transferId?.slice(0, 8)}...`);
+
     if (!transfer) {
       console.log('❌ No transfer found for chunk:', transferId?.slice(0, 8) + '...');
       return;
@@ -994,6 +1067,8 @@ export class Kunai extends EventEmitter {
 
     const actualTotal = (typeof total === 'string' && total.includes('-split')) ? parseInt(total.split('-')[0]) : total;
     
+    console.log(`📊 Progress: ${transfer.receivedCount}/${actualTotal} chunks received (${(transfer.receivedCount / actualTotal * 100).toFixed(1)}%)`);
+    
     this.emit('receive-progress', {
       transferId,
       received: transfer.receivedCount,
@@ -1002,6 +1077,7 @@ export class Kunai extends EventEmitter {
     });
 
     if (transfer.receivedCount === actualTotal) {
+      console.log(`🎉 All ${actualTotal} chunks received! Assembling file...`);
       this.assembleFile(transferId);
     }
   }
@@ -1083,27 +1159,43 @@ export class Kunai extends EventEmitter {
   }
 
   /**
-   * Utility: ArrayBuffer to Base64
+   * Utility: ArrayBuffer to Base64 (Node.js compatible)
    */
   private arrayBufferToBase64(buffer: Uint8Array | ArrayBuffer): string {
     const bytes = buffer instanceof ArrayBuffer ? new Uint8Array(buffer) : buffer;
-    let binary = '';
-    for (let i = 0; i < bytes.length; i++) {
-      binary += String.fromCharCode(bytes[i]);
+    
+    // Check if we're in Node.js environment
+    if (typeof process !== 'undefined' && process.versions && process.versions.node) {
+      // Node.js: use Buffer
+      return Buffer.from(bytes).toString('base64');
+    } else {
+      // Browser: use btoa
+      let binary = '';
+      for (let i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      return btoa(binary);
     }
-    return btoa(binary);
   }
 
   /**
-   * Utility: Base64 to ArrayBuffer
+   * Utility: Base64 to ArrayBuffer (Node.js compatible)
    */
   private base64ToArrayBuffer(base64: string): ArrayBuffer {
-    const binary = atob(base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
-      bytes[i] = binary.charCodeAt(i);
+    // Check if we're in Node.js environment
+    if (typeof process !== 'undefined' && process.versions && process.versions.node) {
+      // Node.js: use Buffer
+      const buffer = Buffer.from(base64, 'base64');
+      return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+    } else {
+      // Browser: use atob
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      return bytes.buffer;
     }
-    return bytes.buffer;
   }
 
   /**

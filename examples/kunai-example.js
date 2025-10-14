@@ -12,6 +12,7 @@
 // Use Kunai from CommonJS build (better for Node.js)
 import { Kunai } from '../dist/index.js';
 import fs from 'fs';
+import path from 'path';
 
 // ============================================================================
 // Helper Functions
@@ -24,30 +25,39 @@ function formatSize(bytes) {
 }
 
 async function sendFile(kunai, filepath) {
-  if (!fs.existsSync(filepath)) {
-    throw new Error('File not found: ' + filepath);
+  try {
+    if (!fs.existsSync(filepath)) {
+      throw new Error('File not found: ' + filepath);
+    }
+
+    const stats = fs.statSync(filepath);
+    if (!stats.isFile()) {
+      throw new Error('Path is not a file: ' + filepath);
+    }
+
+    const filename = path.basename(filepath);
+    const buffer = fs.readFileSync(filepath);
+
+    console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('📤 Sending File');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('File:', filename);
+    console.log('Size:', formatSize(stats.size));
+
+    // sendOffer is now async!
+    const code = await kunai.sendOffer(
+      { name: filename, size: stats.size },
+      buffer
+    );
+
+    console.log('\n🔑 Transfer code:', code);
+    console.log('\nOn the other computer, run:');
+    console.log(`  node examples/kunai-example.js receive`);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+  } catch (error) {
+    console.error('❌ Error sending file:', error.message);
+    throw error;
   }
-
-  const stats = fs.statSync(filepath);
-  const filename = filepath.split(/[/\\]/).pop();
-  const buffer = fs.readFileSync(filepath);
-
-  console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('📤 Sending File');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('File:', filename);
-  console.log('Size:', formatSize(stats.size));
-
-  // sendOffer is now async!
-  const code = await kunai.sendOffer(
-    { name: filename, size: stats.size },
-    buffer
-  );
-
-  console.log('\n🔑 Transfer code:', code);
-  console.log('\nOn the other computer, run:');
-  console.log(`  node examples/kunai-example.js receive`);
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 }
 
 // ============================================================================

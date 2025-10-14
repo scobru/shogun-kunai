@@ -27,29 +27,38 @@ function formatSize(bytes) {
 }
 
 async function sendFileCommand(kunai, filepath) {
-  if (!fs.existsSync(filepath)) {
-    console.log('❌ File not found:', filepath);
-    return;
+  try {
+    if (!fs.existsSync(filepath)) {
+      console.log('❌ File not found:', filepath);
+      return;
+    }
+
+    const stats = fs.statSync(filepath);
+    if (!stats.isFile()) {
+      console.log('❌ Path is not a file:', filepath);
+      return;
+    }
+
+    const filename = path.basename(filepath);
+    const buffer = fs.readFileSync(filepath);
+
+    console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('📤 Sending File');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('File:', filename);
+    console.log('Size:', formatSize(stats.size));
+
+    // sendOffer is now async!
+    const code = await kunai.sendOffer(
+      { name: filename, size: stats.size },
+      buffer
+    );
+
+    console.log('\n🔑 Transfer code:', code);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+  } catch (error) {
+    console.error('❌ Error sending file:', error.message);
   }
-
-  const stats = fs.statSync(filepath);
-  const filename = path.basename(filepath);
-  const buffer = fs.readFileSync(filepath);
-
-  console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('📤 Sending File');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('File:', filename);
-  console.log('Size:', formatSize(stats.size));
-
-  // sendOffer is now async!
-  const code = await kunai.sendOffer(
-    { name: filename, size: stats.size },
-    buffer
-  );
-
-  console.log('\n🔑 Transfer code:', code);
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 }
 
 // ============================================================================
