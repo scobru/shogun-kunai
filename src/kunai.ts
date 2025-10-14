@@ -880,8 +880,15 @@ export class Kunai extends EventEmitter {
       
       // Schedule cleanup after retention time
       setTimeout(() => {
-        this.transfers.delete(transferId);
-        console.log(`🧹 Cleaned up completed transfer ${transferId.slice(0, 8)}...`);
+        const transferToCleanup = this.transfers.get(transferId);
+        if (transferToCleanup) {
+          // Clear saved chunks to free memory
+          if (transferToCleanup.chunks) {
+            transferToCleanup.chunks.clear();
+          }
+          this.transfers.delete(transferId);
+          console.log(`🧹 Cleaned up completed transfer ${transferId.slice(0, 8)}...`);
+        }
       }, this.transferRetentionTime);
     }
   }
@@ -950,8 +957,15 @@ export class Kunai extends EventEmitter {
       
       // Schedule cleanup after retention time
       setTimeout(() => {
-        this.transfers.delete(transferId);
-        console.log(`🧹 Cleaned up completed transfer ${transferId.slice(0, 8)}...`);
+        const transferToCleanup = this.transfers.get(transferId);
+        if (transferToCleanup) {
+          // Clear saved chunks to free memory
+          if (transferToCleanup.chunks) {
+            transferToCleanup.chunks.clear();
+          }
+          this.transfers.delete(transferId);
+          console.log(`🧹 Cleaned up completed transfer ${transferId.slice(0, 8)}...`);
+        }
       }, this.transferRetentionTime);
     }
   }
@@ -967,6 +981,16 @@ export class Kunai extends EventEmitter {
   ): Promise<void> {
     try {
       console.log(`🔧 sendChunk called: index=${index}, chunk.length=${chunk.length}, total=${total}`);
+      
+      // Save chunk in transfer for potential retry
+      const transfer = this.transfers.get(transferId);
+      if (transfer) {
+        if (!transfer.chunks) {
+          transfer.chunks = new Map();
+        }
+        transfer.chunks.set(index, new Uint8Array(chunk)); // Store copy of chunk
+        console.log(`💾 Saved chunk ${index} in transfer for retry (${chunk.length} bytes)`);
+      }
       
       const base64 = this.arrayBufferToBase64(chunk);
       
@@ -1333,10 +1357,21 @@ export class Kunai extends EventEmitter {
     console.log(`🔄 Resending ${chunkIndices.length} chunks for transfer ${transferId.slice(0, 8)}...`);
 
     for (const chunkIndex of chunkIndices) {
-      if (transfer.chunks && transfer.chunks[chunkIndex]) {
+      // Check if chunk is available in the saved chunks map
+      const chunkData = transfer.chunks?.get(chunkIndex);
+      if (chunkData) {
         try {
-          await this.sendChunk(transferId, chunkIndex, transfer.chunks[chunkIndex], transfer.totalChunks);
-          console.log(`✅ Resent chunk ${chunkIndex + 1}/${transfer.totalChunks}`);
+          const base64 = this.arrayBufferToBase64(chunkData);
+          
+          await this.sendMessage({
+            type: 'file-chunk',
+            transferId,
+            index: chunkIndex,
+            data: base64,
+            total: transfer.chunks
+          }, address);
+
+          console.log(`✅ Resent chunk ${chunkIndex + 1}/${transfer.chunks} (${chunkData.length} bytes)`);
           
           // Small delay between chunks
           await new Promise(resolve => setTimeout(resolve, 100));

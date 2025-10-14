@@ -6,5 +6,21 @@
     "size": 0,
     "status": "failed",
     "timestamp": "2025-10-14T12:00:30.463Z"
+  },
+  {
+    "type": "received",
+    "transferId": "13-charlie-hotel",
+    "filename": "yarn.lock",
+    "size": 0,
+    "status": "failed",
+    "timestamp": "2025-10-14T12:05:59.089Z"
+  },
+  {
+    "type": "received",
+    "transferId": "98-charlie-bravo",
+    "filename": "package-lock.json",
+    "size": 0,
+    "status": "failed",
+    "timestamp": "2025-10-14T12:06:45.224Z"
   }
 ]
