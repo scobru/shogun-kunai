@@ -43,7 +43,7 @@ interface RTCConfiguration {
 }
 import { EventEmitter } from 'events';
 
-const CHUNK_SIZE = 256 * 1024; // 256KB chunks for efficient transfer
+const CHUNK_SIZE = 64 * 1024; // 64KB chunks for efficient transfer (reduced for GunDB compatibility)
 const ENCRYPTED_CHUNK_SIZE = 16 * 1024; // 16KB chunks for encrypted mode (larger now that toBase64 is fixed)
 const MIN_CHUNK_SIZE = 512; // 512 bytes minimum chunk size
 const WEBRTC_THRESHOLD = 1024; // Use WebRTC for files > 1KB, GunDB for signaling only
@@ -647,7 +647,7 @@ export class Kunai extends EventEmitter {
     
     // Choose transfer method: GunDB for reliable transfer, WebRTC as optional enhancement
     const webRTCAvailable = this.RTCPeerConnection !== null;
-    const useWebRTC = false; // Disable WebRTC for now, focus on reliable GunDB transfer
+    const useWebRTC = file.size > WEBRTC_THRESHOLD; // Force WebRTC for chunk delivery
     const chunkSize = this.encrypted ? ENCRYPTED_CHUNK_SIZE : this.chunkSize;
     const totalChunks = Math.ceil(file.size / chunkSize);
     
@@ -883,8 +883,8 @@ export class Kunai extends EventEmitter {
         const transferToCleanup = this.transfers.get(transferId);
         if (transferToCleanup) {
           // Clear saved chunks to free memory
-          if (transferToCleanup.chunks) {
-            transferToCleanup.chunks.clear();
+          if (transferToCleanup.chunkData) {
+            transferToCleanup.chunkData.clear();
           }
           this.transfers.delete(transferId);
           console.log(`🧹 Cleaned up completed transfer ${transferId.slice(0, 8)}...`);
@@ -960,8 +960,8 @@ export class Kunai extends EventEmitter {
         const transferToCleanup = this.transfers.get(transferId);
         if (transferToCleanup) {
           // Clear saved chunks to free memory
-          if (transferToCleanup.chunks) {
-            transferToCleanup.chunks.clear();
+          if (transferToCleanup.chunkData) {
+            transferToCleanup.chunkData.clear();
           }
           this.transfers.delete(transferId);
           console.log(`🧹 Cleaned up completed transfer ${transferId.slice(0, 8)}...`);
@@ -985,10 +985,10 @@ export class Kunai extends EventEmitter {
       // Save chunk in transfer for potential retry
       const transfer = this.transfers.get(transferId);
       if (transfer) {
-        if (!transfer.chunks) {
-          transfer.chunks = new Map();
+        if (!transfer.chunkData) {
+          transfer.chunkData = new Map();
         }
-        transfer.chunks.set(index, new Uint8Array(chunk)); // Store copy of chunk
+        transfer.chunkData.set(index, new Uint8Array(chunk)); // Store copy of chunk
         console.log(`💾 Saved chunk ${index} in transfer for retry (${chunk.length} bytes)`);
       }
       
@@ -1358,7 +1358,7 @@ export class Kunai extends EventEmitter {
 
     for (const chunkIndex of chunkIndices) {
       // Check if chunk is available in the saved chunks map
-      const chunkData = transfer.chunks?.get(chunkIndex);
+      const chunkData = transfer.chunkData?.get(chunkIndex);
       if (chunkData) {
         try {
           const base64 = this.arrayBufferToBase64(chunkData);
