@@ -16,6 +16,10 @@ import fs from 'fs';
 import path from 'path';
 import readline from 'readline';
 
+// Transfer history storage
+const transferHistory = [];
+const TRANSFER_LOG_FILE = './transfer-history.json';
+
 // ============================================================================
 // Helper Functions
 // ============================================================================
@@ -24,6 +28,46 @@ function formatSize(bytes) {
   if (bytes < 1024) return bytes + ' B';
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
   return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+}
+
+function loadTransferHistory() {
+  try {
+    if (fs.existsSync(TRANSFER_LOG_FILE)) {
+      const data = fs.readFileSync(TRANSFER_LOG_FILE, 'utf8');
+      const history = JSON.parse(data);
+      transferHistory.push(...history);
+      console.log(`📋 Loaded ${history.length} transfer records`);
+    }
+  } catch (error) {
+    console.log('⚠️ Could not load transfer history:', error.message);
+  }
+}
+
+function saveTransferHistory() {
+  try {
+    fs.writeFileSync(TRANSFER_LOG_FILE, JSON.stringify(transferHistory, null, 2));
+  } catch (error) {
+    console.log('⚠️ Could not save transfer history:', error.message);
+  }
+}
+
+function addTransferRecord(type, transferId, filename, size, status, timestamp = new Date().toISOString()) {
+  const record = {
+    type, // 'sent' or 'received'
+    transferId,
+    filename,
+    size,
+    status, // 'completed', 'failed', 'timeout'
+    timestamp
+  };
+  transferHistory.push(record);
+  
+  // Keep only last 100 records
+  if (transferHistory.length > 100) {
+    transferHistory.splice(0, transferHistory.length - 100);
+  }
+  
+  saveTransferHistory();
 }
 
 async function sendFileCommand(kunai, filepath) {
@@ -114,6 +158,9 @@ if (channelArg) {
 console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 console.log("\nInitializing...\n");
 
+// Load transfer history
+loadTransferHistory();
+
 // ============================================================================
 // Event Handlers
 // ============================================================================
@@ -121,6 +168,14 @@ console.log("\nInitializing...\n");
 kunai.on('ready', () => {
   console.log('✅ Kunai ready!');
   console.log('Address:', kunai.address().slice(0, 24) + '...\n');
+});
+
+kunai.on('connections', (count) => {
+  console.log(`🔗 Connections: ${count} peer(s)`);
+  if (encrypted && kunai.yari) {
+    const encryptedPeers = Object.keys(kunai.yari.peers).length;
+    console.log(`🔐 Encrypted peers: ${encryptedPeers}`);
+  }
 });
 
 kunai.on('offer-sent', (offer) => {
@@ -137,6 +192,11 @@ kunai.on('send-progress', (progress) => {
 
 kunai.on('transfer-complete', (transferId) => {
   console.log('\n\n🏁 Transfer complete!\n');
+  // Find the transfer info to record it
+  const transfer = kunai.transfers?.get(transferId);
+  if (transfer) {
+    addTransferRecord('sent', transferId, transfer.file?.name || 'unknown', transfer.file?.size || 0, 'completed');
+  }
 });
 
 kunai.on('file-offer', (offer) => {
@@ -147,6 +207,7 @@ kunai.on('file-offer', (offer) => {
   console.log('File:', offer.filename);
   console.log('Size:', formatSize(offer.size));
   console.log('Code:', offer.transferId);
+  console.log('Chunks:', offer.chunks);
   if (encrypted) {
     console.log('🔐 Encrypted: YES');
   }
@@ -156,6 +217,14 @@ kunai.on('file-offer', (offer) => {
 
 kunai.on('receive-progress', (progress) => {
   process.stdout.write(`\r📥 Receiving: ${progress.percent}% (${progress.received}/${progress.total} chunks)`);
+});
+
+kunai.on('transfer-accepted', (transferId) => {
+  console.log(`\n✅ Transfer ${transferId} accepted, starting download...`);
+});
+
+kunai.on('transfer-started', (transferId) => {
+  console.log(`\n🚀 Transfer ${transferId} started!`);
 });
 
 kunai.on('file-received', (result) => {
@@ -173,13 +242,39 @@ kunai.on('file-received', (result) => {
     console.log('\n\n✅ File received successfully!');
     console.log('📁 Saved to:', outputPath);
     console.log('📊 Size:', formatSize(result.size), '\n');
+    
+    // Record successful receive
+    addTransferRecord('received', result.transferId, result.filename, result.size, 'completed');
   } catch (err) {
     console.error('\n❌ Error saving file:', err.message);
+    addTransferRecord('received', result.transferId, result.filename, result.size, 'failed');
   }
 });
 
 kunai.on('sender-confirmed', (transferId) => {
   console.log('🏁 Sender confirmed transfer complete');
+});
+
+kunai.on('error', (error) => {
+  console.error('\n❌ Kunai Error:', error.message || error);
+});
+
+kunai.on('transfer-timeout', (transferId) => {
+  console.log(`\n⏰ Transfer ${transferId} timed out`);
+  // Record timeout
+  const transfer = kunai.transfers?.get(transferId);
+  if (transfer) {
+    addTransferRecord('sent', transferId, transfer.file?.name || 'unknown', transfer.file?.size || 0, 'timeout');
+  }
+});
+
+kunai.on('transfer-failed', (result) => {
+  console.log(`\n❌ Transfer failed: ${result.filename}`);
+  console.log(`   Reason: ${result.reason}`);
+  if (result.missingChunks) {
+    console.log(`   Missing chunks: ${result.missingChunks.join(', ')}`);
+  }
+  addTransferRecord('received', result.transferId, result.filename, 0, 'failed');
 });
 
 // ============================================================================
@@ -196,6 +291,8 @@ setTimeout(() => {
   console.log("📝 Commands:");
   console.log("  send <filepath>    - Send a file");
   console.log("  receive            - Listen for incoming transfers");
+  console.log("  status             - Show active transfers and connections");
+  console.log("  history            - Show transfer history");
   console.log("  quit               - Exit");
   console.log("\n💡 Current Settings:");
   console.log("  Channel:", channelArg || identifier);
@@ -225,6 +322,38 @@ rl.on('line', async (line) => {
     } else if (cmd === 'receive') {
       console.log("✅ Listening for transfers...");
       console.log("Transfers are auto-accepted when offered.");
+    } else if (cmd === 'status') {
+      console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      console.log("📊 Kunai Status");
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      console.log("Address:", kunai.address().slice(0, 24) + '...');
+      console.log("Connections:", kunai.yumi.connections());
+      if (encrypted && kunai.yari) {
+        console.log("Encrypted peers:", Object.keys(kunai.yari.peers).length);
+      }
+      console.log("Channel:", channelArg || identifier);
+      console.log("Mode:", encrypted ? '🔐 Encrypted (Yari)' : '🏹 Plain (Yumi)');
+      console.log("Network:", localOnly ? '🏠 LAN Only' : '🌐 Internet + LAN');
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
+    } else if (cmd === 'history') {
+      console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      console.log("📋 Transfer History");
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+      if (transferHistory.length === 0) {
+        console.log("No transfers recorded yet.");
+      } else {
+        transferHistory.slice(-10).reverse().forEach((record, index) => {
+          const statusIcon = record.status === 'completed' ? '✅' : 
+                           record.status === 'failed' ? '❌' : '⏰';
+          const typeIcon = record.type === 'sent' ? '📤' : '📥';
+          const time = new Date(record.timestamp).toLocaleString();
+          console.log(`${statusIcon} ${typeIcon} ${record.filename} (${formatSize(record.size)}) - ${record.transferId} - ${time}`);
+        });
+        if (transferHistory.length > 10) {
+          console.log(`... and ${transferHistory.length - 10} more transfers`);
+        }
+      }
+      console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
     } else if (cmd === 'quit' || cmd === 'exit') {
       rl.close();
       process.emit('SIGINT');

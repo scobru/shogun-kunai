@@ -1,0 +1,10 @@
+[
+  {
+    "type": "received",
+    "transferId": "67-kilo-india",
+    "filename": "yarn.lock",
+    "size": 0,
+    "status": "failed",
+    "timestamp": "2025-10-14T12:00:30.463Z"
+  }
+]

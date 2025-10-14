@@ -95,6 +95,17 @@ export class Kunai extends EventEmitter {
   private pendingWebRTCOffers: Map<string, any> = new Map();
   private RTCPeerConnection: any = null;
   private RTCDataChannel: any = null;
+  
+  // Chunk retry mechanism
+  private chunkTimeouts: Map<string, NodeJS.Timeout> = new Map();
+  private chunkRequestTimeouts: Map<string, NodeJS.Timeout> = new Map();
+  private maxChunkRetries: number = 3;
+  private chunkRequestDelay: number = 2000; // 2 seconds
+  private transferRetentionTime: number = 30000; // 30 seconds to keep transfers for retry
+  
+  // Peer cleanup mechanism
+  private peerCleanupInterval: NodeJS.Timeout | null = null;
+  private peerTimeout: number = 60000; // 60 seconds to consider peer offline
 
   constructor(identifier?: string, opts?: KunaiOptions) {
     super();
@@ -122,6 +133,9 @@ export class Kunai extends EventEmitter {
     }
 
     this.setupHandlers();
+    
+    // Start peer cleanup interval
+    this.startPeerCleanup();
   }
 
   private loadWebRTC(): void {
@@ -258,6 +272,9 @@ export class Kunai extends EventEmitter {
         break;
       case 'transfer-complete':
         this.handleTransferComplete(address, msg);
+        break;
+      case 'chunk-request':
+        this.handleChunkRequest(address, msg);
         break;
     }
   }
@@ -570,8 +587,8 @@ export class Kunai extends EventEmitter {
         } else {
           // Broadcast to all peers
           console.log('🔐 Broadcasting to all peers...');
-          const sendResult = await this.yari.send(message);
-          console.log('🔍 Yari.send result:', sendResult);
+          await this.yari.send(message);
+          // Yari.send() returns undefined on success, which is expected
         }
         console.log('✅ Encrypted message sent successfully');
       } catch (error) {
@@ -740,7 +757,8 @@ export class Kunai extends EventEmitter {
       receivedCount: 0,
       useWebRTC: useWebRTC || false,
       chunkSize: chunkSize || this.chunkSize,
-      peerId: address // Store peer ID for WebRTC
+      peerId: address, // Store peer ID for WebRTC
+      senderAddress: address // Store sender address for chunk requests
     });
 
     this.emit('file-offer', {
@@ -853,7 +871,19 @@ export class Kunai extends EventEmitter {
     });
 
     this.emit('transfer-complete', transferId);
-    this.transfers.delete(transferId);
+    
+    // Keep transfer in memory for retry requests, but mark as completed
+    const currentTransfer = this.transfers.get(transferId);
+    if (currentTransfer) {
+      currentTransfer.completed = true;
+      currentTransfer.completedAt = Date.now();
+      
+      // Schedule cleanup after retention time
+      setTimeout(() => {
+        this.transfers.delete(transferId);
+        console.log(`🧹 Cleaned up completed transfer ${transferId.slice(0, 8)}...`);
+      }, this.transferRetentionTime);
+    }
   }
 
   /**
@@ -911,7 +941,19 @@ export class Kunai extends EventEmitter {
     });
 
     this.emit('transfer-complete', transferId);
-    this.transfers.delete(transferId);
+    
+    // Keep transfer in memory for retry requests, but mark as completed
+    const currentTransfer = this.transfers.get(transferId);
+    if (currentTransfer) {
+      currentTransfer.completed = true;
+      currentTransfer.completedAt = Date.now();
+      
+      // Schedule cleanup after retention time
+      setTimeout(() => {
+        this.transfers.delete(transferId);
+        console.log(`🧹 Cleaned up completed transfer ${transferId.slice(0, 8)}...`);
+      }, this.transferRetentionTime);
+    }
   }
 
   /**
@@ -1078,7 +1120,11 @@ export class Kunai extends EventEmitter {
 
     if (transfer.receivedCount === actualTotal) {
       console.log(`🎉 All ${actualTotal} chunks received! Assembling file...`);
+      this.cleanupChunkTimeouts(transferId);
       this.assembleFile(transferId);
+    } else {
+      // Set timeout for missing chunks
+      this.scheduleChunkTimeout(transferId, actualTotal);
     }
   }
 
@@ -1155,7 +1201,245 @@ export class Kunai extends EventEmitter {
    */
   private handleTransferComplete(address: string, msg: any): void {
     const { transferId } = msg;
-    this.emit('sender-confirmed', transferId);
+    console.log('🏁 Sender confirmed transfer complete');
+    
+    // Check if we have all chunks before considering complete
+    const transfer = this.receivedChunks.get(transferId);
+    if (transfer) {
+      const missingChunks = this.getMissingChunks(transferId);
+      if (missingChunks.length > 0) {
+        console.log(`⚠️ Transfer marked complete but missing ${missingChunks.length} chunks:`, missingChunks);
+        console.log('🔄 Requesting missing chunks...');
+        this.requestMissingChunks(transferId, missingChunks);
+      } else {
+        console.log('✅ All chunks received, transfer truly complete');
+        this.emit('sender-confirmed', transferId);
+      }
+    } else {
+      this.emit('sender-confirmed', transferId);
+    }
+  }
+
+  /**
+   * Get list of missing chunks for a transfer
+   */
+  private getMissingChunks(transferId: string): number[] {
+    const transfer = this.receivedChunks.get(transferId);
+    if (!transfer) return [];
+
+    const missingChunks: number[] = [];
+    for (let i = 0; i < transfer.totalChunks; i++) {
+      if (!transfer.chunks[i]) {
+        missingChunks.push(i);
+      }
+    }
+    return missingChunks;
+  }
+
+  /**
+   * Request missing chunks from sender
+   */
+  private async requestMissingChunks(transferId: string, missingChunks: number[]): Promise<void> {
+    console.log(`🔍 Requesting ${missingChunks.length} missing chunks for transfer ${transferId.slice(0, 8)}...`);
+    
+    // Find the sender address for this transfer
+    const transfer = this.receivedChunks.get(transferId);
+    if (!transfer || !transfer.senderAddress) {
+      console.log('❌ No sender address found for transfer');
+      return;
+    }
+
+    // Send chunk request message
+    const message = {
+      type: 'chunk-request',
+      transferId,
+      missingChunks
+    };
+
+    try {
+      await this.sendMessage(message, transfer.senderAddress);
+      console.log(`📤 Sent chunk request for ${missingChunks.length} chunks`);
+      
+      // Set timeout for chunk request
+      const timeoutKey = `${transferId}-request`;
+      if (this.chunkRequestTimeouts.has(timeoutKey)) {
+        clearTimeout(this.chunkRequestTimeouts.get(timeoutKey)!);
+      }
+      
+      this.chunkRequestTimeouts.set(timeoutKey, setTimeout(() => {
+        console.log(`⏰ Chunk request timeout for transfer ${transferId.slice(0, 8)}...`);
+        this.handleChunkRequestTimeout(transferId);
+      }, this.chunkRequestDelay * 2));
+      
+    } catch (error) {
+      console.error('❌ Failed to send chunk request:', error);
+    }
+  }
+
+  /**
+   * Handle chunk request timeout
+   */
+  private handleChunkRequestTimeout(transferId: string): void {
+    const transfer = this.receivedChunks.get(transferId);
+    if (!transfer) return;
+
+    const missingChunks = this.getMissingChunks(transferId);
+    if (missingChunks.length > 0) {
+      console.log(`❌ Transfer ${transferId.slice(0, 8)}... failed - ${missingChunks.length} chunks still missing`);
+      this.emit('transfer-failed', {
+        transferId,
+        reason: 'missing-chunks',
+        missingChunks,
+        filename: transfer.filename
+      });
+      
+      // Clean up
+      this.receivedChunks.delete(transferId);
+      this.cleanupChunkTimeouts(transferId);
+    }
+  }
+
+  /**
+   * Handle incoming chunk request
+   */
+  private handleChunkRequest(address: string, msg: any): void {
+    const { transferId, missingChunks } = msg;
+    console.log(`📥 Received chunk request for transfer ${transferId.slice(0, 8)}...`);
+    console.log(`   Missing chunks: ${missingChunks.join(', ')}`);
+
+    const transfer = this.transfers.get(transferId);
+    if (!transfer) {
+      console.log('❌ Transfer not found for chunk request');
+      return;
+    }
+
+    if (transfer.completed) {
+      console.log(`✅ Transfer completed, resending ${missingChunks.length} chunks...`);
+    } else {
+      console.log(`🔄 Transfer still active, resending ${missingChunks.length} chunks...`);
+    }
+
+    // Resend requested chunks
+    this.resendChunks(transferId, missingChunks, address);
+  }
+
+  /**
+   * Resend specific chunks
+   */
+  private async resendChunks(transferId: string, chunkIndices: number[], address: string): Promise<void> {
+    const transfer = this.transfers.get(transferId);
+    if (!transfer) return;
+
+    console.log(`🔄 Resending ${chunkIndices.length} chunks for transfer ${transferId.slice(0, 8)}...`);
+
+    for (const chunkIndex of chunkIndices) {
+      if (transfer.chunks && transfer.chunks[chunkIndex]) {
+        try {
+          await this.sendChunk(transferId, chunkIndex, transfer.chunks[chunkIndex], transfer.totalChunks);
+          console.log(`✅ Resent chunk ${chunkIndex + 1}/${transfer.totalChunks}`);
+          
+          // Small delay between chunks
+          await new Promise(resolve => setTimeout(resolve, 100));
+        } catch (error) {
+          console.error(`❌ Failed to resend chunk ${chunkIndex}:`, error);
+        }
+      } else {
+        console.log(`⚠️ Chunk ${chunkIndex} not available for resending`);
+      }
+    }
+  }
+
+  /**
+   * Schedule timeout for missing chunks
+   */
+  private scheduleChunkTimeout(transferId: string, totalChunks: number): void {
+    const timeoutKey = `${transferId}-chunk`;
+    
+    // Clear existing timeout
+    if (this.chunkTimeouts.has(timeoutKey)) {
+      clearTimeout(this.chunkTimeouts.get(timeoutKey)!);
+    }
+    
+    // Set new timeout
+    this.chunkTimeouts.set(timeoutKey, setTimeout(() => {
+      const transfer = this.receivedChunks.get(transferId);
+      if (!transfer) return;
+      
+      const missingChunks = this.getMissingChunks(transferId);
+      if (missingChunks.length > 0) {
+        console.log(`⏰ Chunk timeout for transfer ${transferId.slice(0, 8)}... - missing ${missingChunks.length} chunks`);
+        console.log(`   Missing chunks: ${missingChunks.join(', ')}`);
+        
+        // Request missing chunks
+        this.requestMissingChunks(transferId, missingChunks);
+      }
+    }, this.chunkRequestDelay));
+  }
+
+  /**
+   * Clean up chunk timeouts for a transfer
+   */
+  private cleanupChunkTimeouts(transferId: string): void {
+    // Clear chunk timeouts
+    const chunkTimeoutKey = `${transferId}-chunk`;
+    if (this.chunkTimeouts.has(chunkTimeoutKey)) {
+      clearTimeout(this.chunkTimeouts.get(chunkTimeoutKey)!);
+      this.chunkTimeouts.delete(chunkTimeoutKey);
+    }
+
+    // Clear request timeouts
+    const requestTimeoutKey = `${transferId}-request`;
+    if (this.chunkRequestTimeouts.has(requestTimeoutKey)) {
+      clearTimeout(this.chunkRequestTimeouts.get(requestTimeoutKey)!);
+      this.chunkRequestTimeouts.delete(requestTimeoutKey);
+    }
+  }
+
+  /**
+   * Start peer cleanup interval
+   */
+  private startPeerCleanup(): void {
+    // Clean up offline peers every 30 seconds
+    this.peerCleanupInterval = setInterval(() => {
+      this.cleanupOfflinePeers();
+    }, 30000);
+  }
+
+  /**
+   * Clean up offline peers from GunDB
+   */
+  private cleanupOfflinePeers(): void {
+    const now = Date.now();
+    const peers = this.yumi.peers;
+    const offlinePeers: string[] = [];
+
+    // Check for peers that haven't been seen recently
+    for (const [address, peerInfo] of Object.entries(peers)) {
+      if (now - peerInfo.last > this.peerTimeout) {
+        offlinePeers.push(address);
+      }
+    }
+
+    if (offlinePeers.length > 0) {
+      console.log(`🧹 Cleaning up ${offlinePeers.length} offline peers...`);
+      
+      // Remove offline peers from GunDB
+      for (const address of offlinePeers) {
+        // Remove from Gun graph
+        this.yumi.gun
+          .get('kunai-peers')
+          .get(address)
+          .put(null);
+        
+        // Remove from local peers map
+        delete this.yumi.peers[address];
+        
+        console.log(`   Removed offline peer: ${address.slice(0, 12)}...`);
+      }
+      
+      // Update connections count
+      this.yumi._updateConnections();
+    }
   }
 
   /**
@@ -1209,6 +1493,18 @@ export class Kunai extends EventEmitter {
    * Destroy and cleanup
    */
   destroy(cb?: () => void): void {
+    // Clear all timeouts
+    this.chunkTimeouts.forEach(timeout => clearTimeout(timeout));
+    this.chunkRequestTimeouts.forEach(timeout => clearTimeout(timeout));
+    this.chunkTimeouts.clear();
+    this.chunkRequestTimeouts.clear();
+
+    // Clear peer cleanup interval
+    if (this.peerCleanupInterval) {
+      clearInterval(this.peerCleanupInterval);
+      this.peerCleanupInterval = null;
+    }
+
     // Clear all transfers
     this.transfers.clear();
     this.receivedChunks.clear();
