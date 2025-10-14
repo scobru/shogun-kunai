@@ -92,8 +92,8 @@ async function sendFileCommand(kunai, filepath) {
     console.log('File:', filename);
     console.log('Size:', formatSize(stats.size));
 
-    // sendOffer is now async!
-    const code = await kunai.sendOffer(
+    // sendFile is now async!
+    const code = await kunai.sendFile(
       { name: filename, size: stats.size },
       buffer
     );
@@ -133,7 +133,13 @@ const kunai = new Kunai(identifier, {
   encrypted: encrypted,
   channel: channelArg,
   ws: true,
-  rtc: true,
+  rtc: {
+    iceServers: [
+      {urls: 'stun:stun.l.google.com:19302'},
+      {urls: 'stun:stun.cloudflare.com:3478'},
+      {urls: 'stun:stun.services.mozilla.com'}
+    ]
+  },
   axe: true,
   wire: true,
   webrtc: true,
@@ -237,17 +243,23 @@ kunai.on('file-received', (result) => {
   const outputPath = path.join(receivedDir, result.filename);
 
   try {
-    fs.writeFileSync(outputPath, Buffer.from(result.buffer));
+    // Handle both old format (result.buffer) and new GunDB format (result.data)
+    const fileData = result.data || result.buffer;
+    if (!fileData) {
+      throw new Error('No file data received');
+    }
+    
+    fs.writeFileSync(outputPath, Buffer.from(fileData));
 
     console.log('\n\n✅ File received successfully!');
     console.log('📁 Saved to:', outputPath);
     console.log('📊 Size:', formatSize(result.size), '\n');
     
     // Record successful receive
-    addTransferRecord('received', result.transferId, result.filename, result.size, 'completed');
+    addTransferRecord('received', result.fileId || result.transferId, result.filename, result.size, 'completed');
   } catch (err) {
     console.error('\n❌ Error saving file:', err.message);
-    addTransferRecord('received', result.transferId, result.filename, result.size, 'failed');
+    addTransferRecord('received', result.fileId || result.transferId, result.filename, result.size, 'failed');
   }
 });
 
@@ -291,6 +303,7 @@ setTimeout(() => {
   console.log("📝 Commands:");
   console.log("  send <filepath>    - Send a file");
   console.log("  receive            - Listen for incoming transfers");
+  console.log("  check              - Check for existing files");
   console.log("  status             - Show active transfers and connections");
   console.log("  history            - Show transfer history");
   console.log("  quit               - Exit");
@@ -319,10 +332,16 @@ rl.on('line', async (line) => {
       } else {
         await sendFileCommand(kunai, filepath);
       }
-    } else if (cmd === 'receive') {
-      console.log("✅ Listening for transfers...");
-      console.log("Transfers are auto-accepted when offered.");
-    } else if (cmd === 'status') {
+  } else if (cmd === 'receive') {
+    console.log("✅ Listening for transfers...");
+    console.log("Transfers are auto-accepted when offered.");
+  } else if (cmd === 'check') {
+    try {
+      kunai.checkExistingFiles();
+    } catch (error) {
+      console.error("❌ Error checking files:", error.message);
+    }
+  } else if (cmd === 'status') {
       console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
       console.log("📊 Kunai Status");
       console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
