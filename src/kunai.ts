@@ -1127,8 +1127,13 @@ export class Kunai extends EventEmitter {
       }
     } else {
       // Regular chunk
-      transfer.chunks[index] = this.base64ToArrayBuffer(data);
-      transfer.receivedCount++;
+      // Check if chunk has already been received before incrementing
+      if (!transfer.chunks[index]) {
+        transfer.chunks[index] = this.base64ToArrayBuffer(data);
+        transfer.receivedCount++;
+      } else {
+        console.log(`🔄 Duplicate chunk ${index + 1} received, ignoring.`);
+      }
     }
 
     const actualTotal = (typeof total === 'string' && total.includes('-split')) ? parseInt(total.split('-')[0]) : total;
@@ -1168,10 +1173,13 @@ export class Kunai extends EventEmitter {
     console.log('   Received count:', transfer.receivedCount);
     console.log('   Chunks array length:', transfer.chunks.filter((c: any) => c).length);
     
-    // Filter out empty slots in sparse array
-    const validChunks = transfer.chunks.filter((c: any) => c !== undefined && c !== null);
+    // **Critical Change:** Do not filter the chunks array.
+    // If the file is assembled with missing chunks, it should fail loudly
+    // rather than creating a corrupted file silently.
+    // The `getMissingChunks` and retry logic should handle missing pieces.
+    const validChunks = transfer.chunks;
     
-    console.log('   Valid chunks:', validChunks.length);
+    console.log('   Chunks to assemble:', validChunks.length);
     
     // Check if we're in Node.js or Browser
     const isNodeEnv = typeof process !== 'undefined' && process.versions && process.versions.node;
