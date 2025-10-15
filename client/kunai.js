@@ -92,8 +92,8 @@ async function sendFileCommand(kunai, filepath) {
     console.log('File:', filename);
     console.log('Size:', formatSize(stats.size));
 
-    // sendOffer is now async!
-    const code = await kunai.sendOffer(
+    // sendFile is now async!
+    const code = await kunai.sendFile(
       { name: filename, size: stats.size },
       buffer
     );
@@ -120,23 +120,23 @@ const identifier = channelArg || args.find(arg => !arg.startsWith('-')) || 'kuna
 // ============================================================================
 
 const kunai = new Kunai(identifier, {
-  announce: localOnly ? [] : [
-    "http://peer.wallie.io/gun",
-    "https://relay.shogun-eco.xyz/gun",
-    "https://v5g5jseqhgkp43lppgregcfbvi.srv.us/gun",
-    "https://gun.defucc.me/gun",
-    "https://a.talkflow.team/gun",
-  ],
   heartbeat: 15000,
   radisk: false,
-  localOnly: localOnly || false,
+  localOnly: localOnly,
   encrypted: encrypted,
   channel: channelArg,
   ws: true,
-  rtc: true,
+  rtc: {
+    iceServers: [
+      {urls: 'stun:stun.l.google.com:19302'},
+      {urls: 'stun:stun.cloudflare.com:3478'},
+      {urls: 'stun:stun.services.mozilla.com'}
+    ]
+  },
   axe: true,
   wire: true,
   webrtc: true,
+  cleanupDelay: 10000,
 });
 
 console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -171,10 +171,14 @@ kunai.on('ready', () => {
 });
 
 kunai.on('connections', (count) => {
-  console.log(`🔗 Connections: ${count} peer(s)`);
+  if (count > 0) {
+    console.log(`🔗 Connections: ${count} peer(s)`);
+  }
   if (encrypted && kunai.yari) {
     const encryptedPeers = Object.keys(kunai.yari.peers).length;
-    console.log(`🔐 Encrypted peers: ${encryptedPeers}`);
+    if (encryptedPeers > 0) {
+      console.log(`🔐 Encrypted peers: ${encryptedPeers}`);
+    }
   }
 });
 
@@ -237,18 +241,38 @@ kunai.on('file-received', (result) => {
   const outputPath = path.join(receivedDir, result.filename);
 
   try {
-    fs.writeFileSync(outputPath, Buffer.from(result.buffer));
+    // Handle both old format (result.buffer) and new GunDB format (result.data)
+    const fileData = result.data || result.buffer;
+    if (!fileData) {
+      throw new Error('No file data received');
+    }
+    
+    fs.writeFileSync(outputPath, Buffer.from(fileData));
 
     console.log('\n\n✅ File received successfully!');
     console.log('📁 Saved to:', outputPath);
     console.log('📊 Size:', formatSize(result.size), '\n');
     
     // Record successful receive
-    addTransferRecord('received', result.transferId, result.filename, result.size, 'completed');
+    addTransferRecord('received', result.fileId || result.transferId, result.filename, result.size, 'completed');
   } catch (err) {
     console.error('\n❌ Error saving file:', err.message);
-    addTransferRecord('received', result.transferId, result.filename, result.size, 'failed');
+    addTransferRecord('received', result.fileId || result.transferId, result.filename, result.size, 'failed');
   }
+});
+
+// Listen for simple messages
+kunai.onMessage((address, message) => {
+  console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  if (encrypted) {
+    console.log('🔓 Encrypted Message Received');
+  } else {
+    console.log('📨 Message Received');
+  }
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('From:', address.slice(0, 16) + '...');
+  console.log('Content:', typeof message === 'string' ? message : JSON.stringify(message, null, 2));
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 });
 
 kunai.on('sender-confirmed', (transferId) => {
@@ -290,7 +314,9 @@ const rl = readline.createInterface({
 setTimeout(() => {
   console.log("📝 Commands:");
   console.log("  send <filepath>    - Send a file");
+  console.log("  msg <message>      - Send a text message");
   console.log("  receive            - Listen for incoming transfers");
+  console.log("  check              - Check for existing files");
   console.log("  status             - Show active transfers and connections");
   console.log("  history            - Show transfer history");
   console.log("  quit               - Exit");
@@ -319,10 +345,37 @@ rl.on('line', async (line) => {
       } else {
         await sendFileCommand(kunai, filepath);
       }
-    } else if (cmd === 'receive') {
-      console.log("✅ Listening for transfers...");
-      console.log("Transfers are auto-accepted when offered.");
-    } else if (cmd === 'status') {
+    } else if (cmd === 'msg' || cmd === 'message') {
+      const message = args.join(' ');
+      if (!message) {
+        console.log("Usage: msg <message>");
+      } else {
+        try {
+          await kunai.send({
+            type: 'chat',
+            text: message,
+            from: kunai.address().slice(0, 8),
+            timestamp: Date.now()
+          });
+          if (encrypted) {
+            console.log("✅ Encrypted message sent");
+          } else {
+            console.log("✅ Message sent");
+          }
+        } catch (error) {
+          console.error("❌ Error sending message:", error.message);
+        }
+      }
+  } else if (cmd === 'receive') {
+    console.log("✅ Listening for transfers...");
+    console.log("Transfers are auto-accepted when offered.");
+  } else if (cmd === 'check') {
+    try {
+      kunai.checkExistingFiles();
+    } catch (error) {
+      console.error("❌ Error checking files:", error.message);
+    }
+  } else if (cmd === 'status') {
       console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
       console.log("📊 Kunai Status");
       console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
