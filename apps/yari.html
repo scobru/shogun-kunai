@@ -3,159 +3,230 @@
 <head>
   <meta charset="utf-8">
   <title>Yari (槍) Demo (UMD) - Encrypted P2P Chat ⚔️🔐</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
     * { box-sizing: border-box; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      max-width: 1200px;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      max-width: 1400px;
       margin: 0 auto;
-      padding: 20px;
-      background: #0f0f23;
-      color: #cccccc;
+      padding: 30px;
+      background: #0a0a15;
+      color: #e0e0e0;
+      line-height: 1.6;
     }
     h1 { 
       color: #ff00ff; 
-      text-shadow: 0 0 10px #ff00ff;
+      text-shadow: 0 0 20px rgba(255, 0, 255, 0.5);
+      font-size: 2.5em;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      text-align: center;
+      margin-bottom: 8px;
     }
     .subtitle {
-      color: #00ff00;
+      color: #00ff88;
       text-align: center;
-      margin-top: -10px;
-      font-size: 0.9em;
+      margin-top: 0;
+      margin-bottom: 30px;
+      font-size: 1.05em;
+      font-weight: 500;
     }
     .container {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 20px;
-      margin-top: 20px;
+      gap: 24px;
+      margin-top: 30px;
     }
     .panel {
-      background: #1a1a2e;
-      border: 1px solid #ff00ff;
-      border-radius: 8px;
-      padding: 20px;
-      box-shadow: 0 0 20px rgba(255, 0, 255, 0.1);
+      background: #151525;
+      border: 1px solid rgba(255, 0, 255, 0.3);
+      border-radius: 16px;
+      padding: 28px;
+      box-shadow: 0 8px 32px rgba(255, 0, 255, 0.15);
+      transition: all 0.3s ease;
+    }
+    .panel:hover {
+      border-color: rgba(255, 0, 255, 0.5);
+      box-shadow: 0 12px 48px rgba(255, 0, 255, 0.2);
+      transform: translateY(-2px);
     }
     .panel h2 {
       margin-top: 0;
       color: #ff00ff;
-      font-size: 1.2em;
-      border-bottom: 1px solid #ff00ff;
-      padding-bottom: 10px;
+      font-size: 1.3em;
+      font-weight: 600;
+      border-bottom: 2px solid rgba(255, 0, 255, 0.3);
+      padding-bottom: 12px;
+      margin-bottom: 20px;
     }
     .info-item {
-      margin: 10px 0;
-      padding: 8px;
-      background: #0f0f23;
-      border-radius: 4px;
-      font-family: monospace;
-      font-size: 0.85em;
-      word-break: break-all;
-    }
-    .info-label { color: #888; display: inline-block; width: 100px; }
-    #messages {
-      height: 300px;
-      overflow-y: auto;
-      background: #0f0f23;
-      padding: 10px;
-      border-radius: 4px;
-      margin-bottom: 10px;
-      font-family: monospace;
+      margin: 12px 0;
+      padding: 12px 14px;
+      background: rgba(255, 0, 255, 0.05);
+      border-radius: 8px;
+      font-family: 'JetBrains Mono', monospace;
       font-size: 0.9em;
+      word-break: break-all;
+      border-left: 3px solid rgba(255, 0, 255, 0.4);
     }
+    .info-label { 
+      color: #999; 
+      display: inline-block; 
+      width: 110px; 
+      font-weight: 600;
+      font-size: 0.95em;
+    }
+    #messages {
+      height: 320px;
+      overflow-y: auto;
+      background: rgba(255, 0, 255, 0.03);
+      padding: 16px;
+      border-radius: 12px;
+      margin-bottom: 16px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.95em;
+      border: 1px solid rgba(255, 0, 255, 0.15);
+    }
+    #messages::-webkit-scrollbar { width: 8px; }
+    #messages::-webkit-scrollbar-track { background: rgba(255, 0, 255, 0.05); border-radius: 4px; }
+    #messages::-webkit-scrollbar-thumb { background: rgba(255, 0, 255, 0.3); border-radius: 4px; }
+    #messages::-webkit-scrollbar-thumb:hover { background: rgba(255, 0, 255, 0.5); }
     .message {
-      margin: 8px 0;
-      padding: 8px;
-      background: #1a1a2e;
-      border-left: 3px solid #00ff00;
-      border-radius: 4px;
+      margin: 10px 0;
+      padding: 14px 16px;
+      background: rgba(255, 0, 255, 0.08);
+      border-left: 4px solid #00ff88;
+      border-radius: 10px;
+      transition: all 0.2s ease;
+    }
+    .message:hover {
+      background: rgba(255, 0, 255, 0.12);
+      transform: translateX(4px);
     }
     .message-encrypted {
       border-left-color: #ff00ff;
-      background: #2a1a2e;
+      background: rgba(255, 0, 255, 0.12);
     }
-    .message-address { color: #ff00ff; font-weight: bold; font-size: 0.85em; }
-    .message-content { margin-top: 4px; color: #cccccc; }
-    .message-time { color: #666; font-size: 0.75em; margin-top: 4px; }
-    .message-lock { color: #ff00ff; font-size: 0.8em; }
+    .message-address { color: #ff00ff; font-weight: 600; font-size: 0.9em; }
+    .message-content { margin-top: 6px; color: #e0e0e0; font-size: 1.02em; line-height: 1.5; }
+    .message-time { color: #888; font-size: 0.8em; margin-top: 6px; }
+    .message-lock { color: #ff00ff; font-size: 0.85em; }
     #peers-list {
-      max-height: 200px;
+      max-height: 220px;
       overflow-y: auto;
-      background: #0f0f23;
-      padding: 10px;
-      border-radius: 4px;
-      font-family: monospace;
-      font-size: 0.85em;
+      background: rgba(255, 0, 255, 0.03);
+      padding: 12px;
+      border-radius: 12px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.9em;
+      border: 1px solid rgba(255, 0, 255, 0.15);
     }
+    #peers-list::-webkit-scrollbar { width: 8px; }
+    #peers-list::-webkit-scrollbar-track { background: rgba(255, 0, 255, 0.05); border-radius: 4px; }
+    #peers-list::-webkit-scrollbar-thumb { background: rgba(255, 0, 255, 0.3); border-radius: 4px; }
+    #peers-list::-webkit-scrollbar-thumb:hover { background: rgba(255, 0, 255, 0.5); }
     .peer-item {
-      padding: 6px;
-      margin: 4px 0;
-      background: #1a1a2e;
-      border-radius: 4px;
-      border-left: 3px solid #ff00ff;
+      padding: 10px 12px;
+      margin: 6px 0;
+      background: rgba(255, 0, 255, 0.08);
+      border-radius: 8px;
+      border-left: 4px solid #ff00ff;
+      transition: all 0.2s ease;
     }
-    .peer-address { color: #ff00ff; }
-    .peer-keys { color: #00ff00; font-size: 0.75em; margin-top: 4px; }
+    .peer-item:hover {
+      background: rgba(255, 0, 255, 0.15);
+      transform: translateX(4px);
+    }
+    .peer-address { color: #ff00ff; font-weight: 600; }
+    .peer-keys { color: #00ff88; font-size: 0.82em; margin-top: 6px; opacity: 0.9; }
     input[type="text"] {
       width: 100%;
-      padding: 10px;
-      background: #0f0f23;
-      border: 1px solid #ff00ff;
-      border-radius: 4px;
-      color: #cccccc;
-      font-family: inherit;
-      font-size: 1em;
+      padding: 14px 16px;
+      background: rgba(255, 0, 255, 0.05);
+      border: 2px solid rgba(255, 0, 255, 0.3);
+      border-radius: 10px;
+      color: #e0e0e0;
+      font-family: 'Inter', sans-serif;
+      font-size: 1.02em;
+      transition: all 0.3s ease;
     }
     input[type="text"]:focus {
       outline: none;
-      box-shadow: 0 0 10px rgba(255, 0, 255, 0.3);
+      background: rgba(255, 0, 255, 0.08);
+      border-color: #ff00ff;
+      box-shadow: 0 0 0 4px rgba(255, 0, 255, 0.1);
+    }
+    input[type="text"]::placeholder {
+      color: #888;
     }
     button {
-      background: #ff00ff;
-      color: #0f0f23;
+      background: linear-gradient(135deg, #ff00ff 0%, #cc00ff 100%);
+      color: #ffffff;
       border: none;
-      padding: 10px 20px;
-      border-radius: 4px;
+      padding: 14px 28px;
+      border-radius: 10px;
       cursor: pointer;
-      font-weight: bold;
-      font-size: 1em;
-      transition: all 0.2s;
+      font-weight: 600;
+      font-size: 1.02em;
+      transition: all 0.3s ease;
+      font-family: 'Inter', sans-serif;
+      box-shadow: 0 4px 16px rgba(255, 0, 255, 0.3);
     }
-    button:hover { background: #cc00cc; box-shadow: 0 0 10px rgba(255, 0, 255, 0.5); }
-    button:active { transform: scale(0.95); }
-    .send-form { display: flex; gap: 10px; margin-top: 10px; }
+    button:hover { 
+      background: linear-gradient(135deg, #ff33ff 0%, #dd00ff 100%);
+      box-shadow: 0 6px 24px rgba(255, 0, 255, 0.5);
+      transform: translateY(-2px);
+    }
+    button:active { transform: translateY(0) scale(0.98); }
+    .send-form { display: flex; gap: 12px; margin-top: 12px; }
     .send-form input { flex: 1; }
     #status {
-      padding: 10px;
-      background: #1a1a2e;
-      border-radius: 4px;
-      margin-bottom: 20px;
+      padding: 16px 24px;
+      background: rgba(255, 0, 255, 0.1);
+      border-radius: 12px;
+      margin-bottom: 30px;
       text-align: center;
-      font-weight: bold;
-      border: 1px solid #ff00ff;
+      font-weight: 600;
+      font-size: 1.1em;
+      border: 2px solid rgba(255, 0, 255, 0.3);
+      box-shadow: 0 4px 20px rgba(255, 0, 255, 0.15);
     }
     .status-connecting { color: #ffaa00; }
-    .status-connected { color: #00ff00; }
+    .status-connected { color: #00ff88; }
     .log-entry {
-      padding: 4px 8px;
-      margin: 2px 0;
-      font-size: 0.85em;
-      border-radius: 3px;
-      background: #0f0f23;
+      padding: 8px 12px;
+      margin: 6px 0;
+      font-size: 0.9em;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.02);
+      font-family: 'JetBrains Mono', monospace;
+      transition: all 0.2s ease;
     }
-    .log-info { border-left: 3px solid #00aaff; }
-    .log-success { border-left: 3px solid #00ff00; }
-    .log-encrypted { border-left: 3px solid #ff00ff; }
-    .log-warning { border-left: 3px solid #ffaa00; }
+    .log-entry:hover {
+      background: rgba(255, 255, 255, 0.05);
+      transform: translateX(4px);
+    }
+    .log-info { border-left: 4px solid #00aaff; }
+    .log-success { border-left: 4px solid #00ff88; }
+    .log-encrypted { border-left: 4px solid #ff00ff; }
+    .log-warning { border-left: 4px solid #ffaa00; }
     #event-log {
-      height: 250px;
+      height: 270px;
       overflow-y: auto;
-      background: #0f0f23;
-      padding: 10px;
-      border-radius: 4px;
-      font-family: monospace;
-      font-size: 0.85em;
+      background: rgba(255, 0, 255, 0.03);
+      padding: 14px;
+      border-radius: 12px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.9em;
+      border: 1px solid rgba(255, 0, 255, 0.15);
     }
+    #event-log::-webkit-scrollbar { width: 8px; }
+    #event-log::-webkit-scrollbar-track { background: rgba(255, 0, 255, 0.05); border-radius: 4px; }
+    #event-log::-webkit-scrollbar-thumb { background: rgba(255, 0, 255, 0.3); border-radius: 4px; }
+    #event-log::-webkit-scrollbar-thumb:hover { background: rgba(255, 0, 255, 0.5); }
     .full-width { grid-column: 1 / -1; }
   </style>
 </head>

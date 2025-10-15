@@ -120,16 +120,9 @@ const identifier = channelArg || args.find(arg => !arg.startsWith('-')) || 'kuna
 // ============================================================================
 
 const kunai = new Kunai(identifier, {
-  announce: localOnly ? [] : [
-    "http://peer.wallie.io/gun",
-    "https://relay.shogun-eco.xyz/gun",
-    "https://v5g5jseqhgkp43lppgregcfbvi.srv.us/gun",
-    "https://gun.defucc.me/gun",
-    "https://a.talkflow.team/gun",
-  ],
   heartbeat: 15000,
   radisk: false,
-  localOnly: localOnly || false,
+  localOnly: localOnly,
   encrypted: encrypted,
   channel: channelArg,
   ws: true,
@@ -143,6 +136,7 @@ const kunai = new Kunai(identifier, {
   axe: true,
   wire: true,
   webrtc: true,
+  cleanupDelay: 10000,
 });
 
 console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
@@ -267,6 +261,20 @@ kunai.on('file-received', (result) => {
   }
 });
 
+// Listen for simple messages
+kunai.onMessage((address, message) => {
+  console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  if (encrypted) {
+    console.log('🔓 Encrypted Message Received');
+  } else {
+    console.log('📨 Message Received');
+  }
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('From:', address.slice(0, 16) + '...');
+  console.log('Content:', typeof message === 'string' ? message : JSON.stringify(message, null, 2));
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+});
+
 kunai.on('sender-confirmed', (transferId) => {
   console.log('🏁 Sender confirmed transfer complete');
 });
@@ -306,6 +314,7 @@ const rl = readline.createInterface({
 setTimeout(() => {
   console.log("📝 Commands:");
   console.log("  send <filepath>    - Send a file");
+  console.log("  msg <message>      - Send a text message");
   console.log("  receive            - Listen for incoming transfers");
   console.log("  check              - Check for existing files");
   console.log("  status             - Show active transfers and connections");
@@ -335,6 +344,27 @@ rl.on('line', async (line) => {
         console.log("Usage: send <filepath>");
       } else {
         await sendFileCommand(kunai, filepath);
+      }
+    } else if (cmd === 'msg' || cmd === 'message') {
+      const message = args.join(' ');
+      if (!message) {
+        console.log("Usage: msg <message>");
+      } else {
+        try {
+          await kunai.send({
+            type: 'chat',
+            text: message,
+            from: kunai.address().slice(0, 8),
+            timestamp: Date.now()
+          });
+          if (encrypted) {
+            console.log("✅ Encrypted message sent");
+          } else {
+            console.log("✅ Message sent");
+          }
+        } catch (error) {
+          console.error("❌ Error sending message:", error.message);
+        }
       }
   } else if (cmd === 'receive') {
     console.log("✅ Listening for transfers...");

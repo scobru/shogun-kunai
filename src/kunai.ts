@@ -11,9 +11,9 @@ import { Yari } from './yari.js';
 import { YumiOptions } from './types.js';
 import { EventEmitter } from 'events';
 
-const CHUNK_SIZE = 16000; // 16KB chunks for GunDB compatibility
+const CHUNK_SIZE = 10000; // 16KB chunks for GunDB compatibility
 const CLEANUP_DELAY = 5000; // 5 seconds
-const TRANSFER_TIMEOUT = 1 * 10 * 1000; // 1 second
+const TRANSFER_TIMEOUT = 1 * 10 * 1000; // 10 second
 
 export interface KunaiOptions extends YumiOptions {
   chunkSize?: number;
@@ -49,6 +49,10 @@ export class Kunai extends EventEmitter {
   private chunkSize: number;
   private cleanupDelay: number;
   private transferTimeout: number;
+  
+  // Chunk cache for retransmission
+  private chunkCache: Map<string, { chunks: Map<number, string>, metadata: any, timestamp: number }> = new Map();
+  private CACHE_RETENTION = 5 * 60 * 1000; // Keep chunks for 5 minutes
 
   constructor(identifier?: string, opts?: KunaiOptions) {
     super();
@@ -73,6 +77,8 @@ export class Kunai extends EventEmitter {
     }
 
     this.setupHandlers();
+    this.setupChunkRetransmission();
+    this.startCacheCleanup();
   }
 
   private setupHandlers(): void {
@@ -86,6 +92,75 @@ export class Kunai extends EventEmitter {
     this.yumi.on('connections', (count: number) => {
       this.emit('connections', count);
     });
+  }
+
+  /**
+   * Setup RPC handlers for chunk retransmission
+   */
+  private setupChunkRetransmission(): void {
+    // Handle request for missing chunks
+    this.yumi.register('request-chunks', (address: string, args: any, callback: (result: any) => void) => {
+      const { fileId, missingChunks } = args;
+      
+      console.log(`📨 Received request for ${missingChunks.length} missing chunks from ${address.slice(0, 12)}...`);
+      
+      const cached = this.chunkCache.get(fileId);
+      if (!cached) {
+        console.log(`❌ No cached chunks for ${fileId}`);
+        callback({ success: false, error: 'File not in cache' });
+        return;
+      }
+      
+      // Collect requested chunks
+      const chunks: { index: number, data: string }[] = [];
+      for (const index of missingChunks) {
+        const chunkData = cached.chunks.get(index);
+        if (chunkData) {
+          chunks.push({ index, data: chunkData });
+        }
+      }
+      
+      console.log(`✅ Sending ${chunks.length} chunks to ${address.slice(0, 12)}...`);
+      
+      callback({
+        success: true,
+        fileId,
+        chunks
+      });
+    });
+
+    // Handle completion confirmation
+    this.yumi.register('transfer-confirmed', (address: string, args: any, callback: (result: any) => void) => {
+      const { fileId } = args;
+      
+      console.log(`✅ Transfer confirmed by ${address.slice(0, 12)}... for ${fileId}`);
+      
+      // Remove from cache
+      this.chunkCache.delete(fileId);
+      
+      callback({ success: true });
+    });
+  }
+
+  /**
+   * Start periodic cache cleanup
+   */
+  private startCacheCleanup(): void {
+    setInterval(() => {
+      const now = Date.now();
+      const toDelete: string[] = [];
+      
+      for (const [fileId, cached] of this.chunkCache.entries()) {
+        if (now - cached.timestamp > this.CACHE_RETENTION) {
+          toDelete.push(fileId);
+        }
+      }
+      
+      for (const fileId of toDelete) {
+        console.log(`🗑️ Cleaning up cached chunks for ${fileId}`);
+        this.chunkCache.delete(fileId);
+      }
+    }, 60000); // Check every minute
   }
 
   /**
@@ -144,44 +219,74 @@ export class Kunai extends EventEmitter {
             chunkListener.off();
           }
           
-          // Before reassembling, perform a final check to ensure all chunks are present
-          this.yumi.gun.get('chunks').get(fileId).map().once((chunk: any, chunkId: any) => {
-            if (chunk && typeof chunk.index !== 'undefined' && chunk.data && !receivedChunks[chunk.index]) {
-              receivedChunks[chunk.index] = chunk.data;
-              collectedChunks++;
-            }
-          });
-
-          // Give GunDB a moment to process the .once() request
-          setTimeout(() => {
-            let base64String = '';
-            let allChunksPresent = true;
-            const missingChunks: number[] = [];
-
-            for (let i = 0; i < metadata.totalChunks; i++) {
-              if (receivedChunks[i]) {
-                base64String += receivedChunks[i];
-              } else {
-                missingChunks.push(i);
-                allChunksPresent = false;
-              }
-            }
+          // Before reassembling, perform a comprehensive final sweep to catch any missed chunks
+          console.log(`🔍 Performing final sweep for missing chunks...`);
+          
+          // Do multiple passes to ensure we get everything (GunDB can be slow/async)
+          let sweepAttempts = 0;
+          const maxSweeps = 5; // More sweeps = better chance to find missing chunks
+          
+          const performSweep = () => {
+            sweepAttempts++;
+            const missingBefore = metadata.totalChunks - collectedChunks;
             
-            if (allChunksPresent) {
-              console.log(`🎉 All chunks available, reassembling ${metadata.name}...`);
-              this.reassembleFile(base64String, metadata, fileId);
-            } else {
-              console.log(`❌ Cannot reassemble ${metadata.name} - still missing ${missingChunks.length} chunks after final check.`);
-              console.log(`Missing chunk indices: ${missingChunks.slice(0, 10).join(', ')}${missingChunks.length > 10 ? '...' : ''}`);
-              isProcessing = false;
-            }
-          }, 1000); // 1 second delay for .once() to complete
+            this.yumi.gun.get('chunks').get(fileId).map().once((chunk: any, chunkId: any) => {
+              if (chunk && typeof chunk.index !== 'undefined' && chunk.data && !receivedChunks[chunk.index]) {
+                receivedChunks[chunk.index] = chunk.data;
+                collectedChunks++;
+              }
+            });
+            
+            setTimeout(() => {
+              const missingAfter = metadata.totalChunks - collectedChunks;
+              const foundInSweep = missingBefore - missingAfter;
+              
+              if (foundInSweep > 0) {
+                console.log(`🔄 Sweep ${sweepAttempts}: Found ${foundInSweep} more chunks, ${missingAfter} still missing.`);
+              } else {
+                console.log(`🔍 Sweep ${sweepAttempts}: No new chunks found, ${missingAfter} still missing.`);
+              }
+              
+              // Always do all sweeps, even if we're not finding chunks (GunDB can be slow)
+              if (missingAfter > 0 && sweepAttempts < maxSweeps) {
+                console.log(`🔄 Continuing sweep ${sweepAttempts + 1}/${maxSweeps}...`);
+                performSweep();
+              } else {
+                // Final reassembly attempt
+                let base64String = '';
+                let allChunksPresent = true;
+                const missingChunks: number[] = [];
+
+                for (let i = 0; i < metadata.totalChunks; i++) {
+                  if (receivedChunks[i]) {
+                    base64String += receivedChunks[i];
+                  } else {
+                    missingChunks.push(i);
+                    allChunksPresent = false;
+                  }
+                }
+                
+                if (allChunksPresent) {
+                  console.log(`🎉 All chunks available after ${sweepAttempts} sweep(s), reassembling ${metadata.name}...`);
+                  this.reassembleFile(base64String, metadata, fileId);
+                } else {
+                  console.log(`❌ Cannot reassemble ${metadata.name} - still missing ${missingChunks.length} chunks after ${sweepAttempts} sweeps.`);
+                  console.log(`Missing chunk indices: ${missingChunks.slice(0, 10).join(', ')}${missingChunks.length > 10 ? '...' : ''}`);
+                  isProcessing = false;
+                }
+              }
+            }, 2000); // 2 second delay between sweeps to give GunDB time
+          };
+          
+          performSweep();
         }
       });
       
-      // Set timeout to force completion if chunks are missing (longer timeout for large files)
-      // Account for batch delays: 10 chunks per batch × 50ms = ~5s per 1000 chunks
-      const timeoutDuration = Math.max(60000, metadata.totalChunks * 100); // At least 60s, or 100ms per chunk
+      // Set timeout to force completion if chunks are missing
+      // With 5ms per chunk upload, expect completion within chunks * 5ms + network latency
+      // Give it 3x the expected time to account for network delays
+      const expectedDuration = metadata.totalChunks * 5; // 5ms per chunk
+      const timeoutDuration = Math.max(15000, expectedDuration * 3); // At least 15s, or 3x expected duration
       timeoutId = setTimeout(() => {
         if (!isProcessing && collectedChunks > 0) {
           console.log(`⏰ Timeout reached for ${metadata.name}. Attempting reassembly with ${collectedChunks}/${metadata.totalChunks} chunks...`);
@@ -192,42 +297,147 @@ export class Kunai extends EventEmitter {
             chunkListener.off();
           }
 
-          // On timeout, perform a final check for all chunks before attempting reassembly
-          this.yumi.gun.get('chunks').get(fileId).map().once((chunk: any, chunkId: any) => {
-            if (chunk && typeof chunk.index !== 'undefined' && chunk.data && !receivedChunks[chunk.index]) {
-              receivedChunks[chunk.index] = chunk.data;
-              collectedChunks++;
-            }
-          });
-
-          setTimeout(() => {
-            let base64String = '';
-            let missingChunks: number[] = [];
-            let allChunksPresent = true;
-
-            for (let i = 0; i < metadata.totalChunks; i++) {
-              if (receivedChunks[i]) {
-                base64String += receivedChunks[i];
-              } else {
-                missingChunks.push(i);
-                allChunksPresent = false;
-              }
-            }
+          // On timeout, perform comprehensive sweeps to recover missing chunks
+          console.log(`🔍 Timeout: Performing final sweeps for ${metadata.totalChunks - collectedChunks} missing chunks...`);
+          
+          let sweepAttempts = 0;
+          const maxSweeps = 5; // More sweeps = better chance to find missing chunks
+          
+          const performTimeoutSweep = () => {
+            sweepAttempts++;
+            const missingBefore = metadata.totalChunks - collectedChunks;
             
-            if (allChunksPresent) {
-              console.log(`✅ All chunks available after timeout recheck, reassembling ${metadata.name}...`);
-              this.reassembleFile(base64String, metadata, fileId);
-            } else {
-              console.log(`❌ Missing ${missingChunks.length} chunks for ${metadata.name}: ${missingChunks.slice(0, 10).join(', ')}${missingChunks.length > 10 ? '...' : ''}`);
-              console.log(`❌ Cannot complete transfer after timeout`);
-              isProcessing = false;
-            }
-          }, 1000); // 1 second delay for .once() to complete
+            this.yumi.gun.get('chunks').get(fileId).map().once((chunk: any, chunkId: any) => {
+              if (chunk && typeof chunk.index !== 'undefined' && chunk.data && !receivedChunks[chunk.index]) {
+                receivedChunks[chunk.index] = chunk.data;
+                collectedChunks++;
+              }
+            });
+            
+            setTimeout(async () => {
+              const missingAfter = metadata.totalChunks - collectedChunks;
+              const foundInSweep = missingBefore - missingAfter;
+              
+              if (foundInSweep > 0) {
+                console.log(`🔄 Timeout sweep ${sweepAttempts}: Found ${foundInSweep} more chunks, ${missingAfter} still missing.`);
+              } else {
+                console.log(`🔍 Timeout sweep ${sweepAttempts}: No new chunks found, ${missingAfter} still missing.`);
+              }
+              
+              // Always do all sweeps, even if we're not finding chunks (GunDB can be slow)
+              if (missingAfter > 0 && sweepAttempts < maxSweeps) {
+                console.log(`🔄 Continuing timeout sweep ${sweepAttempts + 1}/${maxSweeps}...`);
+                performTimeoutSweep();
+              } else {
+                // After all sweeps, check if we still have missing chunks
+                let base64String = '';
+                let missingChunks: number[] = [];
+                let allChunksPresent = true;
+
+                for (let i = 0; i < metadata.totalChunks; i++) {
+                  if (receivedChunks[i]) {
+                    base64String += receivedChunks[i];
+                  } else {
+                    missingChunks.push(i);
+                    allChunksPresent = false;
+                  }
+                }
+                
+                if (allChunksPresent) {
+                  console.log(`✅ All chunks recovered after ${sweepAttempts} timeout sweep(s), reassembling ${metadata.name}...`);
+                  this.reassembleFile(base64String, metadata, fileId);
+                  
+                  // Notify sender of successful transfer
+                  if (metadata.sender) {
+                    this.yumi.rpc(metadata.sender, 'transfer-confirmed', { fileId }, () => {});
+                  }
+                } else {
+                  // Try to request missing chunks from sender via RPC
+                  console.log(`🔄 Requesting ${missingChunks.length} missing chunks from sender...`);
+                  
+                  if (metadata.sender && this.yumi.peers[metadata.sender]) {
+                    try {
+                      await this.requestMissingChunks(metadata.sender, fileId, missingChunks, receivedChunks, metadata);
+                    } catch (error) {
+                      console.log(`❌ Failed to request chunks: ${(error as Error).message}`);
+                      console.log(`❌ Cannot complete transfer after timeout`);
+                      isProcessing = false;
+                    }
+                  } else {
+                    console.log(`❌ Sender not available for chunk retransmission`);
+                    console.log(`❌ Missing ${missingChunks.length} chunks for ${metadata.name}: ${missingChunks.slice(0, 10).join(', ')}${missingChunks.length > 10 ? '...' : ''}`);
+                    console.log(`❌ Cannot complete transfer after timeout`);
+                    isProcessing = false;
+                  }
+                }
+              }
+            }, 2000); // 2 second delay between sweeps to give GunDB time
+          };
+          
+          performTimeoutSweep();
         }
       }, timeoutDuration);
     });
   }
 
+
+  /**
+   * Request missing chunks from sender
+   */
+  private async requestMissingChunks(
+    senderAddress: string,
+    fileId: string,
+    missingChunks: number[],
+    receivedChunks: { [key: number]: string },
+    metadata: any
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      console.log(`📨 Requesting ${missingChunks.length} chunks from ${senderAddress.slice(0, 12)}...`);
+      
+      this.yumi.rpc(senderAddress, 'request-chunks', 
+        { fileId, missingChunks },
+        (response: any) => {
+          if (!response.success) {
+            reject(new Error(response.error || 'Failed to get chunks'));
+            return;
+          }
+          
+          console.log(`📥 Received ${response.chunks.length} missing chunks`);
+          
+          // Add missing chunks to received chunks
+          for (const chunk of response.chunks) {
+            receivedChunks[chunk.index] = chunk.data;
+          }
+          
+          // Check if we now have all chunks
+          let allChunksPresent = true;
+          let base64String = '';
+          const stillMissing: number[] = [];
+          
+          for (let i = 0; i < metadata.totalChunks; i++) {
+            if (receivedChunks[i]) {
+              base64String += receivedChunks[i];
+            } else {
+              stillMissing.push(i);
+              allChunksPresent = false;
+            }
+          }
+          
+          if (allChunksPresent) {
+            console.log(`✅ All chunks received after retransmission! Reassembling ${metadata.name}...`);
+            this.reassembleFile(base64String, metadata, fileId);
+            
+            // Notify sender of successful transfer
+            this.yumi.rpc(senderAddress, 'transfer-confirmed', { fileId }, () => {});
+            
+            resolve();
+          } else {
+            reject(new Error(`Still missing ${stillMissing.length} chunks: ${stillMissing.slice(0, 10).join(', ')}`));
+          }
+        }
+      );
+    });
+  }
 
   /**
    * Reassemble file from Base64 string
@@ -288,18 +498,24 @@ export class Kunai extends EventEmitter {
     
     this.yumi.gun.get('files').get(fileId).put(metadata);
 
-    // 2. Save all the chunks (batch processing to avoid stack overflow)
+    // 2. Cache chunks for retransmission
+    const chunksMap = new Map<number, string>();
+
+    // 3. Save all the chunks (batch processing to avoid stack overflow)
     const fileChunksNode = this.yumi.gun.get('chunks').get(fileId);
-    const batchSize = 10; // Small batch size to prevent stack overflow
-    const batchDelay = 50; // 50ms delay between batches (prevents stack overflow while keeping transfer fast)
+    const batchSize = 1; // MUST be 1 to prevent GunDB stack overflow
+    const batchDelay = 5; // 5ms delay between chunks (fast enough, prevents stack overflow)
     
     for (let batchStart = 0; batchStart < totalChunks; batchStart += batchSize) {
       const batchEnd = Math.min(batchStart + batchSize, totalChunks);
       
       // Process chunks in this batch
-      const chunkPromises = [];
       for (let i = batchStart; i < batchEnd; i++) {
         const chunk = base64Data.slice(i * this.chunkSize, (i + 1) * this.chunkSize);
+        
+        // Store in cache for retransmission
+        chunksMap.set(i, chunk);
+        
         const chunkData = {
           index: i,
           data: chunk,
@@ -311,17 +527,27 @@ export class Kunai extends EventEmitter {
         fileChunksNode.set(chunkData);
       }
       
-      // Show progress
-      if (batchEnd % 100 === 0 || batchEnd === totalChunks) {
+      // Show progress every 10% or every 100 chunks
+      if (batchEnd % Math.max(1, Math.floor(totalChunks / 10)) === 0 || 
+          batchEnd % 100 === 0 || 
+          batchEnd === totalChunks) {
         const progress = Math.round((batchEnd / totalChunks) * 100);
         console.log(`📤 Upload progress: ${progress}% (${batchEnd}/${totalChunks} chunks)`);
       }
       
-      // Delay between batches to prevent stack overflow and allow GunDB to sync
+      // Critical delay to prevent GunDB stack overflow - allows event loop to clear
       await new Promise(resolve => setTimeout(resolve, batchDelay));
     }
 
+    // 4. Store in cache for retransmission requests
+    this.chunkCache.set(fileId, {
+      chunks: chunksMap,
+      metadata,
+      timestamp: Date.now()
+    });
+
     console.log(`✅ File uploaded to GunDB: ${fileId}`);
+    console.log(`💾 Cached ${chunksMap.size} chunks for retransmission (retention: ${this.CACHE_RETENTION / 60000} min)`);
     this.emit('transfer-complete', fileId);
     
     return fileId;
@@ -408,11 +634,90 @@ export class Kunai extends EventEmitter {
   }
 
   /**
+   * Send simple message (uses Yari if encrypted, Yumi if plain)
+   */
+  async send(message: any): Promise<void>;
+  async send(address: string, message: any): Promise<void>;
+  async send(addressOrMessage: string | any, message?: any): Promise<void> {
+    if (this.encrypted && this.yari) {
+      // Use Yari for encrypted messaging
+      if (message === undefined) {
+        // Broadcast encrypted message
+        await this.yari.send(addressOrMessage);
+      } else {
+        // Direct encrypted message
+        await this.yari.send(addressOrMessage, message);
+      }
+    } else {
+      // Use Yumi for plain messaging
+      if (message === undefined) {
+        // Broadcast message
+        this.yumi.send(addressOrMessage);
+      } else {
+        // Direct message
+        this.yumi.send(addressOrMessage, message);
+      }
+    }
+  }
+
+  /**
+   * Listen for messages (uses appropriate event based on encryption)
+   */
+  onMessage(callback: (address: string, message: any) => void): void {
+    if (this.encrypted && this.yari) {
+      // Listen for decrypted messages
+      this.yari.on('decrypted', (address: string, _pubkeys: any, message: any) => {
+        callback(address, message);
+      });
+    } else {
+      // Listen for plain messages
+      this.yumi.on('message', (address: string, message: any) => {
+        callback(address, message);
+      });
+    }
+  }
+
+  /**
+   * Get peer count
+   */
+  connections(): number {
+    return this.yumi.connections();
+  }
+
+  /**
+   * Ping peers
+   */
+  ping(): void {
+    this.yumi.ping();
+  }
+
+  /**
+   * Register RPC function
+   */
+  register(name: string, fn: (address: string, args: any, callback: (result: any) => void) => void, docstring?: string): void {
+    this.yumi.register(name, fn, docstring);
+  }
+
+  /**
+   * Call RPC function on peer
+   */
+  rpc(address: string, call: string, args: any, callback: (result: any) => void): void {
+    this.yumi.rpc(address, call, args, callback);
+  }
+
+  /**
    * Destroy and cleanup
    */
   destroy(cb?: () => void): void {
-    // Destroy Yumi
-    this.yumi.destroy(cb);
+    // Clear chunk cache
+    this.chunkCache.clear();
+    
+    // Destroy Yumi (or Yari, which will destroy Yumi)
+    if (this.yari) {
+      this.yari.destroy();
+    } else {
+      this.yumi.destroy(cb);
+    }
   }
 }
 

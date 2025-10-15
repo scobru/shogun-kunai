@@ -3,155 +3,229 @@
 <head>
   <meta charset="utf-8">
   <title>Kunai (苦無) - Ephemeral File Transfer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
     * { box-sizing: border-box; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      max-width: 1000px;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      max-width: 1400px;
       margin: 0 auto;
-      padding: 20px;
-      background: #0a0a0a;
-      color: #00ff00;
+      padding: 30px;
+      background: #0a0a15;
+      color: #e0e0e0;
+      line-height: 1.6;
     }
     h1 { 
-      color: #ff4444; 
-      text-shadow: 0 0 10px #ff4444;
+      color: #ff4466; 
+      text-shadow: 0 0 20px rgba(255, 68, 102, 0.5);
+      font-size: 2.5em;
+      font-weight: 700;
+      letter-spacing: -0.02em;
       text-align: center;
+      margin-bottom: 8px;
     }
     .subtitle {
-      color: #888;
+      color: #aaa;
       text-align: center;
-      margin-top: -10px;
-      font-size: 0.9em;
+      margin-top: 0;
+      margin-bottom: 30px;
+      font-size: 1.05em;
+      font-weight: 500;
     }
     .container {
       display: grid;
-      gap: 20px;
-      margin-top: 20px;
+      gap: 24px;
+      margin-top: 30px;
+      grid-template-columns: 1fr 1fr;
     }
     .panel {
-      background: #1a1a1a;
-      border: 1px solid #ff4444;
-      border-radius: 8px;
-      padding: 20px;
-      box-shadow: 0 0 20px rgba(255, 68, 68, 0.1);
+      background: #151525;
+      border: 1px solid rgba(255, 68, 102, 0.3);
+      border-radius: 16px;
+      padding: 28px;
+      box-shadow: 0 8px 32px rgba(255, 68, 102, 0.15);
+      transition: all 0.3s ease;
+    }
+    .panel:hover {
+      border-color: rgba(255, 68, 102, 0.5);
+      box-shadow: 0 12px 48px rgba(255, 68, 102, 0.2);
+      transform: translateY(-2px);
     }
     .panel h2 {
       margin-top: 0;
-      color: #ff4444;
-      font-size: 1.2em;
-      border-bottom: 1px solid #ff4444;
-      padding-bottom: 10px;
+      color: #ff4466;
+      font-size: 1.3em;
+      font-weight: 600;
+      border-bottom: 2px solid rgba(255, 68, 102, 0.3);
+      padding-bottom: 12px;
+      margin-bottom: 20px;
     }
     .info-item {
-      margin: 10px 0;
-      padding: 8px;
-      background: #0a0a0a;
-      border-radius: 4px;
-      font-family: monospace;
-      font-size: 0.85em;
-    }
-    .info-label { color: #888; display: inline-block; width: 100px; }
-    .transfer-code {
-      font-size: 1.5em;
-      color: #ff4444;
-      font-weight: bold;
-      text-align: center;
-      padding: 20px;
-      background: #0a0a0a;
+      margin: 12px 0;
+      padding: 12px 14px;
+      background: rgba(255, 68, 102, 0.05);
       border-radius: 8px;
-      margin: 15px 0;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.9em;
+      border-left: 3px solid rgba(255, 68, 102, 0.4);
+    }
+    .info-label { 
+      color: #999; 
+      display: inline-block; 
+      width: 110px; 
+      font-weight: 600;
+      font-size: 0.95em;
+    }
+    .transfer-code {
+      font-size: 1.8em;
+      color: #ff4466;
+      font-weight: 700;
+      font-family: 'JetBrains Mono', monospace;
+      text-align: center;
+      padding: 24px;
+      background: rgba(255, 68, 102, 0.08);
+      border-radius: 12px;
+      margin: 18px 0;
       cursor: pointer;
-      border: 2px dashed #ff4444;
+      border: 2px dashed rgba(255, 68, 102, 0.5);
+      transition: all 0.3s ease;
     }
     .transfer-code:hover {
-      background: #2a1a1a;
-      box-shadow: 0 0 20px rgba(255, 68, 68, 0.3);
+      background: rgba(255, 68, 102, 0.15);
+      border-color: #ff4466;
+      box-shadow: 0 0 30px rgba(255, 68, 102, 0.3);
+      transform: scale(1.02);
     }
     button {
-      background: #ff4444;
-      color: #0a0a0a;
+      background: linear-gradient(135deg, #ff4466 0%, #ff2244 100%);
+      color: #ffffff;
       border: none;
-      padding: 12px 24px;
-      border-radius: 4px;
+      padding: 14px 28px;
+      border-radius: 10px;
       cursor: pointer;
-      font-weight: bold;
-      font-size: 1em;
-      transition: all 0.2s;
+      font-weight: 600;
+      font-size: 1.02em;
+      transition: all 0.3s ease;
       width: 100%;
-      margin: 5px 0;
+      margin: 8px 0;
+      font-family: 'Inter', sans-serif;
+      box-shadow: 0 4px 16px rgba(255, 68, 102, 0.3);
     }
     button:hover { 
-      background: #ff6666; 
-      box-shadow: 0 0 10px rgba(255, 68, 68, 0.5); 
+      background: linear-gradient(135deg, #ff6688 0%, #ff4466 100%);
+      box-shadow: 0 6px 24px rgba(255, 68, 102, 0.5);
+      transform: translateY(-2px);
     }
-    button:active { transform: scale(0.95); }
+    button:active { transform: translateY(0) scale(0.98); }
     input[type="text"], input[type="file"] {
       width: 100%;
-      padding: 10px;
-      background: #0a0a0a;
-      border: 1px solid #ff4444;
-      border-radius: 4px;
-      color: #00ff00;
-      font-family: monospace;
-      font-size: 1em;
-      margin: 10px 0;
+      padding: 14px 16px;
+      background: rgba(255, 68, 102, 0.05);
+      border: 2px solid rgba(255, 68, 102, 0.3);
+      border-radius: 10px;
+      color: #e0e0e0;
+      font-family: 'Inter', sans-serif;
+      font-size: 1.02em;
+      margin: 12px 0;
+      transition: all 0.3s ease;
+    }
+    input[type="text"]:focus, input[type="file"]:focus {
+      outline: none;
+      background: rgba(255, 68, 102, 0.08);
+      border-color: #ff4466;
+      box-shadow: 0 0 0 4px rgba(255, 68, 102, 0.1);
+    }
+    input[type="text"]::placeholder {
+      color: #888;
     }
     input[type="file"] {
       cursor: pointer;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.95em;
+    }
+    input[type="file"]::file-selector-button {
+      background: rgba(255, 68, 102, 0.2);
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      color: #ff4466;
+      cursor: pointer;
+      margin-right: 12px;
+      font-weight: 600;
+      transition: all 0.2s ease;
+    }
+    input[type="file"]::file-selector-button:hover {
+      background: rgba(255, 68, 102, 0.3);
     }
     .progress-bar {
       width: 100%;
-      height: 30px;
-      background: #0a0a0a;
-      border-radius: 4px;
+      height: 36px;
+      background: rgba(255, 68, 102, 0.1);
+      border-radius: 10px;
       overflow: hidden;
-      margin: 10px 0;
+      margin: 14px 0;
       display: none;
+      border: 1px solid rgba(255, 68, 102, 0.2);
     }
     .progress-fill {
       height: 100%;
-      background: linear-gradient(90deg, #ff4444, #ff6666);
+      background: linear-gradient(90deg, #ff4466, #ff6688);
       width: 0%;
-      transition: width 0.3s;
+      transition: width 0.3s ease;
       display: flex;
       align-items: center;
       justify-content: center;
       color: white;
-      font-weight: bold;
+      font-weight: 600;
+      font-family: 'Inter', sans-serif;
+      box-shadow: 0 0 20px rgba(255, 68, 102, 0.5);
     }
     #status {
-      padding: 10px;
-      background: #1a1a1a;
-      border-radius: 4px;
-      margin-bottom: 20px;
+      padding: 16px 24px;
+      background: rgba(255, 68, 102, 0.1);
+      border-radius: 12px;
+      margin-bottom: 30px;
       text-align: center;
-      font-weight: bold;
-      border: 1px solid #ff4444;
+      font-weight: 600;
+      font-size: 1.1em;
+      border: 2px solid rgba(255, 68, 102, 0.3);
+      box-shadow: 0 4px 20px rgba(255, 68, 102, 0.15);
     }
     .status-connecting { color: #ffaa00; }
-    .status-connected { color: #00ff00; }
+    .status-connected { color: #00ff88; }
     .log-entry {
-      padding: 6px 8px;
-      margin: 4px 0;
-      font-size: 0.85em;
-      border-radius: 3px;
-      background: #0a0a0a;
-      font-family: monospace;
+      padding: 8px 12px;
+      margin: 6px 0;
+      font-size: 0.9em;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.02);
+      font-family: 'JetBrains Mono', monospace;
+      transition: all 0.2s ease;
     }
-    .log-info { border-left: 3px solid #00aaff; }
-    .log-success { border-left: 3px solid #00ff00; }
-    .log-warning { border-left: 3px solid #ffaa00; }
-    .log-error { border-left: 3px solid #ff4444; }
+    .log-entry:hover {
+      background: rgba(255, 255, 255, 0.05);
+      transform: translateX(4px);
+    }
+    .log-info { border-left: 4px solid #00aaff; }
+    .log-success { border-left: 4px solid #00ff88; }
+    .log-warning { border-left: 4px solid #ffaa00; }
+    .log-error { border-left: 4px solid #ff4466; }
     #event-log {
-      height: 200px;
+      height: 220px;
       overflow-y: auto;
-      background: #0a0a0a;
-      padding: 10px;
-      border-radius: 4px;
-      font-family: monospace;
-      font-size: 0.85em;
+      background: rgba(255, 68, 102, 0.03);
+      padding: 14px;
+      border-radius: 12px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.9em;
+      border: 1px solid rgba(255, 68, 102, 0.15);
     }
+    #event-log::-webkit-scrollbar { width: 8px; }
+    #event-log::-webkit-scrollbar-track { background: rgba(255, 68, 102, 0.05); border-radius: 4px; }
+    #event-log::-webkit-scrollbar-thumb { background: rgba(255, 68, 102, 0.3); border-radius: 4px; }
+    #event-log::-webkit-scrollbar-thumb:hover { background: rgba(255, 68, 102, 0.5); }
     .hidden { display: none; }
   </style>
 </head>
@@ -249,287 +323,164 @@
           result += BASE58_ALPHABET[digits[i]];
         }
         return result;
+      },
+      decode: function(string) {
+        if (string.length === 0) return new Uint8Array(0);
+        const bytes = [0];
+        for (let i = 0; i < string.length; i++) {
+          const value = BASE58_ALPHABET.indexOf(string[i]);
+          if (value === -1) throw new Error('Non-base58 character');
+          let carry = value;
+          for (let j = 0; j < bytes.length; j++) {
+            carry += bytes[j] * 58;
+            bytes[j] = carry & 0xff;
+            carry >>= 8;
+          }
+          while (carry > 0) {
+            bytes.push(carry & 0xff);
+            carry >>= 8;
+          }
+        }
+        for (let i = 0; string[i] === BASE58_ALPHABET[0] && i < string.length - 1; i++) {
+          bytes.push(0);
+        }
+        return new Uint8Array(bytes.reverse());
       }
     };
   </script>
 
-  <!-- Yumi UMD -->
+  <!-- Yumi UMD (required by Kunai) -->
   <script src="../dist/yumi.umd.js"></script>
+  
+  <!-- Yari UMD (for encrypted mode) -->
+  <script src="../dist/yari.umd.js"></script>
+
+  <!-- Kunai UMD (NEW - with chunk retransmission + messaging!) -->
+  <script src="../dist/kunai.umd.js"></script>
 
   <script>
-    const CHUNK_SIZE = 64 * 1024; // 64KB
-    const CLEANUP_DELAY = 5000;
-
-    class Kunai {
-      constructor(identifier, opts) {
-        this.yumi = new Yumi.Yumi(identifier + '-kunai', opts);
-        this.transfers = new Map();
-        this.receivedChunks = new Map();
-        this.setupHandlers();
-      }
-
-      setupHandlers() {
-        this.yumi.on('ready', () => {
-          document.getElementById('status').textContent = '🥷 Kunai Ready!';
-          document.getElementById('status').className = 'status-connected';
-          document.getElementById('address').textContent = this.yumi.address().slice(0, 24) + '...';
-          this.addLog('Kunai initialized - ready for transfers', 'success');
-        });
-
-        this.yumi.on('connections', count => {
-          document.getElementById('connections').textContent = count;
-        });
-
-        this.yumi.on('message', (address, msg) => {
-          if (msg.type === 'file-offer') {
-            this.handleFileOffer(address, msg);
-          } else if (msg.type === 'file-accept') {
-            this.handleFileAccept(address, msg);
-          } else if (msg.type === 'file-chunk') {
-            this.handleFileChunk(address, msg);
-          } else if (msg.type === 'transfer-complete') {
-            this.handleTransferComplete(address, msg);
-          }
-        });
-      }
-
-      generateCode() {
-        const words = [
-          'alpha', 'bravo', 'charlie', 'delta', 'echo', 'ninja',
-          'samurai', 'shogun', 'katana', 'sakura', 'tokyo', 'kyoto'
-        ];
-        const word1 = words[Math.floor(Math.random() * words.length)];
-        const word2 = words[Math.floor(Math.random() * words.length)];
-        const num = Math.floor(Math.random() * 100);
-        return `${num}-${word1}-${word2}`;
-      }
-
-      async sendFile(file) {
-        const transferId = this.generateCode();
-        const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-
-        this.addLog(`Sending: ${file.name} (${this.formatSize(file.size)})`, 'info');
-        
-        document.getElementById('transfer-code').textContent = transferId;
-        document.getElementById('transfer-code-display').classList.remove('hidden');
-        document.getElementById('send-progress').style.display = 'block';
-        document.getElementById('mode').textContent = 'Sending';
-
-        // Store transfer
-        this.transfers.set(transferId, {
-          file,
-          chunks: totalChunks,
-          sent: 0
-        });
-
-        // Send offer
-        this.yumi.send({
-          type: 'file-offer',
-          transferId,
-          filename: file.name,
-          size: file.size,
-          chunks: totalChunks
-        });
-
-        this.addLog(`Transfer code: ${transferId}`, 'success');
-      }
-
-      handleFileAccept(address, msg) {
-        const { transferId } = msg;
-        const transfer = this.transfers.get(transferId);
-        
-        if (!transfer) return;
-
-        this.addLog('Transfer accepted - streaming file...', 'success');
-        this.streamFile(transferId);
-      }
-
-      async streamFile(transferId) {
-        const transfer = this.transfers.get(transferId);
-        const reader = new FileReader();
-        let offset = 0;
-        let chunkIndex = 0;
-
-        const readNextChunk = () => {
-          if (offset >= transfer.file.size) {
-            this.yumi.send({
-              type: 'transfer-complete',
-              transferId
-            });
-            this.addLog('Transfer complete!', 'success');
-            document.getElementById('send-progress').style.display = 'none';
-            document.getElementById('mode').textContent = 'Idle';
-            this.transfers.delete(transferId);
-            return;
-          }
-
-          const chunk = transfer.file.slice(offset, offset + CHUNK_SIZE);
-          reader.readAsArrayBuffer(chunk);
-        };
-
-        reader.onload = (e) => {
-          const arrayBuffer = e.target.result;
-          const uint8Array = new Uint8Array(arrayBuffer);
-          const base64 = this.arrayBufferToBase64(uint8Array);
-
-          this.yumi.send({
-            type: 'file-chunk',
-            transferId,
-            index: chunkIndex,
-            data: base64,
-            total: transfer.chunks
-          });
-
-          // Update progress
-          const progress = ((chunkIndex + 1) / transfer.chunks * 100).toFixed(1);
-          document.getElementById('send-progress-fill').style.width = progress + '%';
-          document.getElementById('send-progress-fill').textContent = progress + '%';
-
-          offset += CHUNK_SIZE;
-          chunkIndex++;
-          readNextChunk();
-        };
-
-        readNextChunk();
-      }
-
-      handleFileOffer(address, msg) {
-        const { transferId, filename, size, chunks } = msg;
-        
-        this.addLog(`Incoming: ${filename} (${this.formatSize(size)})`, 'info');
-        this.addLog(`From: ${address.slice(0, 16)}...`, 'info');
-        this.addLog(`Code: ${transferId}`, 'warning');
-
-        // Auto-accept
-        this.receivedChunks.set(transferId, {
-          filename,
-          size,
-          chunks: [],
-          totalChunks: chunks,
-          receivedCount: 0
-        });
-
-        this.yumi.send({
-          type: 'file-accept',
-          transferId
-        });
-
-        document.getElementById('receive-progress').style.display = 'block';
-        document.getElementById('mode').textContent = 'Receiving';
-        this.addLog('Transfer accepted - receiving...', 'success');
-      }
-
-      handleFileChunk(address, msg) {
-        const { transferId, index, data, total } = msg;
-        const transfer = this.receivedChunks.get(transferId);
-
-        if (!transfer) return;
-
-        transfer.chunks[index] = this.base64ToArrayBuffer(data);
-        transfer.receivedCount++;
-
-        const progress = (transfer.receivedCount / total * 100).toFixed(1);
-        document.getElementById('receive-progress-fill').style.width = progress + '%';
-        document.getElementById('receive-progress-fill').textContent = progress + '%';
-
-        if (transfer.receivedCount === total) {
-          this.assembleFile(transferId);
-        }
-      }
-
-      assembleFile(transferId) {
-        const transfer = this.receivedChunks.get(transferId);
-        const blob = new Blob(transfer.chunks);
-
-        // Download file
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = transfer.filename;
-        a.click();
-        URL.revokeObjectURL(url);
-
-        this.addLog(`File saved: ${transfer.filename}`, 'success');
-        document.getElementById('receive-progress').style.display = 'none';
-        document.getElementById('mode').textContent = 'Idle';
-        this.receivedChunks.delete(transferId);
-      }
-
-      handleTransferComplete(address, msg) {
-        this.addLog('Sender confirmed completion', 'success');
-      }
-
-      arrayBufferToBase64(buffer) {
-        let binary = '';
-        const bytes = new Uint8Array(buffer);
-        for (let i = 0; i < bytes.length; i++) {
-          binary += String.fromCharCode(bytes[i]);
-        }
-        return btoa(binary);
-      }
-
-      base64ToArrayBuffer(base64) {
-        const binary = atob(base64);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) {
-          bytes[i] = binary.charCodeAt(i);
-        }
-        return bytes.buffer;
-      }
-
-      formatSize(bytes) {
-        if (bytes < 1024) return bytes + ' B';
-        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
-        return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
-      }
-
-      addLog(msg, type = 'info') {
-        const log = document.getElementById('event-log');
-        const div = document.createElement('div');
-        div.className = 'log-entry log-' + type;
-        div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
-        log.appendChild(div);
-        log.scrollTop = log.scrollHeight;
-      }
+    // Helper function for logging
+    function addLog(msg, type = 'info') {
+      const log = document.getElementById('event-log');
+      const div = document.createElement('div');
+      div.className = 'log-entry log-' + type;
+      div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      log.appendChild(div);
+      log.scrollTop = log.scrollHeight;
     }
 
-    // Initialize
-    const kunai = new Kunai('kunai-demo', {
+    function formatSize(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
+      return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+    }
+
+    // Initialize Kunai with new compiled version
+    const kunai = new Kunai.Kunai('kunai-demo', {
       announce: [
         "http://peer.wallie.io/gun",
         "https://relay.shogun-eco.xyz/gun",
         "https://gun.defucc.me/gun",
         "https://a.talkflow.team/gun"
       ],
-      heartbeat: 15000
+      heartbeat: 15000,
+      encrypted: false  // Set to true for encrypted transfers
+    });
+
+    // Setup event handlers
+    kunai.on('ready', () => {
+      document.getElementById('status').textContent = '🥷 Kunai Ready!';
+      document.getElementById('status').className = 'status-connected';
+      document.getElementById('address').textContent = kunai.address().slice(0, 24) + '...';
+      addLog('Kunai initialized - ready for transfers!', 'success');
+      addLog('Now with chunk retransmission support!', 'success');
+    });
+
+    kunai.on('connections', count => {
+      document.getElementById('connections').textContent = count;
+    });
+
+    kunai.on('transfer-complete', (transferId) => {
+      addLog(`Transfer ${transferId} complete!`, 'success');
+    });
+
+    kunai.on('file-received', (result) => {
+      // Download file automatically
+      const blob = new Blob([result.data]);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = result.filename;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      addLog(`File saved: ${result.filename} (${formatSize(result.size)})`, 'success');
+      document.getElementById('receive-progress').style.display = 'none';
+      document.getElementById('mode').textContent = 'Idle';
+    });
+
+    // Listen for simple messages too
+    kunai.onMessage((address, message) => {
+      addLog(`Message from ${address.slice(0, 12)}...: ${JSON.stringify(message)}`, 'info');
     });
 
     // Send button
-    document.getElementById('send-button').onclick = () => {
+    document.getElementById('send-button').onclick = async () => {
       const fileInput = document.getElementById('file-input');
       if (fileInput.files.length === 0) {
         alert('Please select a file first');
         return;
       }
-      kunai.sendFile(fileInput.files[0]);
+      
+      const file = fileInput.files[0];
+      const buffer = await file.arrayBuffer();
+      
+      addLog(`Sending: ${file.name} (${formatSize(file.size)})`, 'info');
+      document.getElementById('send-progress').style.display = 'block';
+      document.getElementById('mode').textContent = 'Sending';
+      
+      try {
+        const code = await kunai.sendFile(
+          { name: file.name, size: file.size },
+          buffer
+        );
+        
+        document.getElementById('transfer-code').textContent = code;
+        document.getElementById('transfer-code-display').classList.remove('hidden');
+        addLog(`Transfer code: ${code}`, 'success');
+        addLog('Chunks cached for retransmission (5 min retention)', 'info');
+        
+        // Reset UI after transfer
+        setTimeout(() => {
+          document.getElementById('send-progress').style.display = 'none';
+          document.getElementById('mode').textContent = 'Idle';
+        }, 2000);
+      } catch (error) {
+        addLog(`Error: ${error.message}`, 'error');
+        document.getElementById('send-progress').style.display = 'none';
+        document.getElementById('mode').textContent = 'Idle';
+      }
     };
 
-    // Receive button
+    // Receive button (auto-accept)
     document.getElementById('receive-button').onclick = () => {
       const code = document.getElementById('code-input').value.trim();
       if (!code) {
         alert('Please enter a transfer code');
         return;
       }
-      kunai.addLog(`Waiting for transfer: ${code}`, 'info');
-      kunai.addLog('Auto-accepting when available...', 'info');
+      document.getElementById('receive-progress').style.display = 'block';
+      document.getElementById('mode').textContent = 'Receiving';
+      addLog(`Waiting for transfer: ${code}`, 'info');
+      addLog('Files are auto-accepted when detected', 'info');
     };
 
     // Copy code to clipboard
     function copyCode() {
       const code = document.getElementById('transfer-code').textContent;
-      navigator.clipboard.writeText(code);
-      kunai.addLog('Code copied to clipboard!', 'success');
+      navigator.clipboard.writeText(code).then(() => {
+        addLog('Code copied to clipboard!', 'success');
+      });
     }
   </script>
 </body>
