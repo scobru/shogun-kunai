@@ -7,9 +7,16 @@
   "module": "dist/yumi.esm.js",
   "browser": "dist/yumi.umd.js",
   "types": "dist/yumi.d.ts",
+  "bin": {
+    "kunai": "./cli/kunai.js",
+    "yumi": "./cli/yumi.js",
+    "yari": "./cli/yari.js"
+  },
   "files": [
     "dist",
-    "src"
+    "src",
+    "client",
+    "cli"
   ],
   "scripts": {
     "build": "npm run clean && npm run build:ts && npm run build:bundle",
@@ -18,7 +25,9 @@
     "clean": "rimraf dist",
     "dev": "tsc --watch",
     "test": "node test_umd.js",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "install-global": "npm link",
+    "uninstall-global": "npm unlink -g"
   },
   "keywords": [
     "p2p",

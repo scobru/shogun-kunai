@@ -51,6 +51,8 @@ Whether you're building a web app, Node.js service, or just exploring P2P, we've
 
 ### Installation
 
+#### As a Library (npm/yarn)
+
 Using npm (recommended):
 
 ```bash
@@ -64,6 +66,33 @@ yarn add shogun-yumi
 ```
 
 The package includes all necessary dependencies (Shogun Core, TweetNaCl, bs58, etc.)
+
+#### As CLI Tools (Global Commands) 🥷
+
+**Linux/macOS (Automated):**
+
+```bash
+git clone https://github.com/scobru/shogun-yumi.git kunai
+cd kunai
+chmod +x install.sh
+./install.sh
+```
+
+**All Platforms (Manual):**
+
+```bash
+cd kunai
+npm install
+npm run build
+npm link
+```
+
+After installation, you'll have global commands:
+- `kunai` - Ephemeral file transfer (like Magic Wormhole)
+- `yumi` - P2P messaging
+- `yari` - Encrypted P2P messaging
+
+📖 **[See Complete CLI Installation Guide →](./CLI_INSTALL.md)**
 
 ### Node.js Usage
 
@@ -724,7 +753,7 @@ pm2 startup
 - **tweetnacl** - Crypto primitives (Ed25519, NaCl box) for signing and address generation
 - **bs58** / **bs58check** - Base58 encoding for addresses
 
-All dependencies are included when you `npm install bugout-gun`.
+All dependencies are included when you `npm install kunai-gun`.
 
 ### What is Shogun Core?
 
@@ -756,9 +785,9 @@ import {
   RPCCallback,
   APIFunction,
   // Legacy aliases:
-  BugoutGun,
+  KUNAIGun,
   Bugoff,
-  BugoutOptions
+  KUNAIOptions
 } from 'shogun-yumi';
 ```
 
@@ -769,7 +798,7 @@ See `dist/types.d.ts` for all available types.
 ## Contributing
 
 This library combines the best of:
-- Original Bugout's elegant API (chr15m)
+- Original KUNAI's elegant API (chr15m)
 - Shogun Core's unified GunDB interface
 - GunDB's decentralized infrastructure  
 - Gun SEA's encryption capabilities via Shogun Core
@@ -853,7 +882,7 @@ MIT - See LICENSE file
 
 ## Credits
 
-Inspired by [Bugout by chr15m](https://github.com/chr15m/bugout) - reimagined for the Gun ecosystem with TypeScript, Shogun Core integration, and Japanese naming.
+Inspired by [KUNAI by chr15m](https://github.com/chr15m/kunai) - reimagined for the Gun ecosystem with TypeScript, Shogun Core integration, and Japanese naming.
 
 Built on top of [Shogun Core](https://github.com/scobru/shogun-core) for enhanced GunDB and SEA capabilities.
 
@@ -912,9 +941,9 @@ By integrating [Shogun Core](https://github.com/scobru/shogun-core), Yumi & Yari
 - 🔌 [Relay Server](./relay/)
 - 📦 [npm Package](https://www.npmjs.com/package/shogun-yumi) (when published)
 - 🔫 [Shogun Core](https://github.com/scobru/shogun-core)
-- 🏹 [Original Bugout](https://github.com/chr15m/bugout)
+- 🏹 [Original KUNAI](https://github.com/chr15m/kunai)
 
 ---
 
-> Infected with the [FAMGA](https://duckduckgo.com/?q=FAMGA) virus everybody's eating brains. Time to grab yr bugout box & hit the forest.
+> Infected with the [FAMGA](https://duckduckgo.com/?q=FAMGA) virus everybody's eating brains. Time to grab yr kunai box & hit the forest.
 
